@@ -9,7 +9,7 @@ print("=" * 50)
 
 # Basic dataset info
 print(f"Dataset Shape: {df.shape} (rows, columns)")
-print(f"Number of Features: {len(df.columns)}")
+print(f"Number of Features: {(len(df.columns)-1)})")
 print(f"Date Range: {df['Date'].iloc[0]} to {df['Date'].iloc[-1]}")
 
 print("\n" + "=" * 50)

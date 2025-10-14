@@ -4,7 +4,7 @@ import seaborn as sns
 import warnings
 warnings.filterwarnings('ignore')
 
-df = pd.read_csv('Exercise0/data/personality_types_data.csv')
+df = pd.read_csv('Exercise0/data/personality_types_data_v2.csv')
 
 
 print("=" * 60)
@@ -13,8 +13,8 @@ print("=" * 60)
 
 # Basic dataset information
 print(f"Dataset Shape: {df.shape} (rows, columns)")
-print(f"Number of Features: {len(df.columns)}")
-print(f"Features: {df.columns.tolist()}")
+print(f"Number of Features: {(len(df.columns) - 1)}")
+print(f"Variables: {df.columns.tolist()}")
 
 print("\n" + "=" * 60)
 print("DATA TYPES AND QUALITY CHECK")
@@ -155,7 +155,6 @@ print("=" * 60)
 
 print("\nDataset Characteristics:")
 print(f"• {len(df)} individuals with {df['Personality'].nunique()} personality types")
-print(f"• Balanced across demographics: Age {df['Age'].mean():.1f}±{df['Age'].std():.1f} years")
 print(f"• Includes personality scores for MBTI dimensions")
 print(f"• Contains demographic and interest information")
 
