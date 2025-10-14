@@ -1,7 +1,8 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
 
-df = pd.read_csv('Exercise0/data/ozone_data_cleaned.csv')
+df = pd.read_csv('Exercise0/data/ozone_level_data.csv')
 
 print("=" * 50)
 print("DATASET BASIC INFORMATION")
@@ -54,14 +55,32 @@ print("\n" + "=" * 50)
 print("VISUAL ANALYSIS")
 print("=" * 50)
 
-fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 10))
+
+# Preprocessing
+
+df["Date"] = pd.to_datetime(df["Date"])
+df["Month"] = df["Date"].dt.month
+df["Year"] = df["Date"].dt.year
+print(df["Month"])
+#df = df.replace("?", np.nan)
+
+for col in df.columns.difference(["Date", "Month", "Year"]):
+	df[col] = pd.to_numeric(df[col], errors="coerce")
+
+
+fig, ax1 = plt.subplots(1, 1, figsize=(12, 10))
 
 # 1. Ozone days vs normal days
 df['Ozone'].value_counts().plot(kind='bar', ax=ax1, color=['skyblue', 'red'])
 ax1.set_title('Ozone Days vs Normal Days')
 ax1.set_xlabel('0 = Normal Day, 1 = Ozone Day')
 ax1.set_ylabel('Number of Days')
+plt.tight_layout()
+plt.savefig("ozone_target_variable.png")
 
+plt.clf()
+
+fig1, (ax2, ax3, ax4) = plt.subplots(1, 3, figsize=(16, 8))
 # 2. Temperature comparison
 df.boxplot(column='T_AV', by='Ozone', ax=ax2)
 ax2.set_title('Temperature: Ozone vs Normal Days')
@@ -80,7 +99,8 @@ ax4.set_xlabel('Correlation with Ozone')
 
 plt.suptitle('')
 plt.tight_layout()
-plt.show()
+plt.savefig("ozone_features.png")
+plt.clf()
 
 # Simple stats comparison
 print("\n" + "=" * 50)
