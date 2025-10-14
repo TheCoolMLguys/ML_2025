@@ -92,40 +92,53 @@ print("=" * 60)
 
 plt.figure(figsize=(15, 10))
 
-# 1. Personality type distribution
-plt.subplot(2, 3, 1)
+# Personality type distribution (target)
+plt.figure(figsize=(12, 6))
 df['Personality'].value_counts().plot(kind='bar', color='skyblue')
-plt.title('Personality Type Distribution')
+plt.title('Personality Type Distribution (Target Variable)')
+plt.xlabel('Personality Type')
+plt.ylabel('Count')
 plt.xticks(rotation=45)
+plt.grid(axis='y', alpha=0.3)
+plt.tight_layout()
+plt.show()
 
-# 2. Age distribution
-plt.subplot(2, 3, 2)
+# OTHER FEATURES PLOTS
+plt.figure(figsize=(15, 10))
+
+# 1. Age distribution
+plt.subplot(2, 3, 1)
 df['Age'].hist(bins=20, color='lightgreen')
 plt.title('Age Distribution')
 plt.xlabel('Age')
+plt.ylabel('Frequency')
 
-# 3. Gender distribution
-plt.subplot(2, 3, 3)
+# 2. Gender distribution
+plt.subplot(2, 3, 2)
 df['Gender'].value_counts().plot(kind='pie', autopct='%1.1f%%')
 plt.title('Gender Distribution')
 
-# 4. Personality scores distribution
-plt.subplot(2, 3, 4)
+# 3. Personality scores distribution
+plt.subplot(2, 3, 3)
 scores = ['Introversion Score', 'Sensing Score', 'Thinking Score', 'Judging Score']
 df[scores].boxplot()
 plt.title('Personality Scores Distribution')
 plt.xticks(rotation=45)
 
-# 5. Education level
-plt.subplot(2, 3, 5)
+# 4. Education level
+plt.subplot(2, 3, 4)
 df['Education'].value_counts().plot(kind='bar', color='orange')
-plt.title('Education Level (1=Graduate, 0=Undergraduate)')
+plt.title('Education Level (0=Undergraduate, 1=Graduate)')
+plt.xlabel('Education Level')
+plt.ylabel('Count')
 plt.xticks(rotation=0)
 
-# 6. Interests
-plt.subplot(2, 3, 6)
+# 5. Interests
+plt.subplot(2, 3, 5)
 df['Interest'].value_counts().plot(kind='bar', color='purple')
 plt.title('Interest Distribution')
+plt.xlabel('Interest')
+plt.ylabel('Count')
 plt.xticks(rotation=45)
 
 plt.tight_layout()
@@ -137,6 +150,7 @@ numeric_cols = ['Age', 'Introversion Score', 'Sensing Score', 'Thinking Score', 
 correlation_matrix = df[numeric_cols].corr()
 sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', center=0)
 plt.title('Correlation Between Features')
+plt.tight_layout()
 plt.show()
 
 # Personality vs Gender
@@ -147,6 +161,7 @@ plt.xlabel('Personality Type')
 plt.ylabel('Count')
 plt.xticks(rotation=45)
 plt.legend(title='Gender')
+plt.tight_layout()
 plt.show()
 
 print("\n" + "=" * 60)
