@@ -2,7 +2,8 @@ import pandas as pd
 import os
 from sklearn.preprocessing import StandardScaler
 from sklearn.base import BaseEstimator, TransformerMixin
-
+from scipy.stats import skew
+import numpy as np
 
 
 
@@ -151,3 +152,79 @@ class Ozone_preprocessing(BaseEstimator, TransformerMixin):
       
    
 
+
+class breast_cancer_preprocessing(BaseEstimator, TransformerMixin):
+
+
+
+  def __init__(self):
+
+    self.scaler = StandardScaler() 
+
+   
+  # drop area and perimeter columns
+  def drop_area_perimeter_cols(self, X):
+
+    X.columns = X.columns.str.strip()
+    return X.drop(X.filter(regex = "perimeter|area", axis = 1).columns, axis = 1)
+
+
+  def log_transform_dueto_skew(self, X, fit=False):
+   
+   df_log = X.copy()
+
+   numeric_cols = X.drop(columns=["ID"]).select_dtypes(include='number').columns
+   
+   if fit:
+     skewness_values = df_log[numeric_cols].apply(lambda x: skew(x, bias=False))
+     self.highly_skewed = skewness_values[abs(skewness_values) >= 3].index
+
+   # make sure there are no negative values
+   min_vals = df_log[self.highly_skewed].min()
+   shifts = (min_vals <= 0) * (-min_vals + 1)
+
+   log_transformed = np.log1p(df_log[self.highly_skewed] + shifts).rename(columns=lambda x: f"log_{x}")
+   df_log = df_log.drop(columns=self.highly_skewed)
+   df_log = pd.concat([df_log, log_transformed], axis = 1)
+
+   return df_log
+
+
+
+  def apply_standardization(self, X):
+
+   scaler = StandardScaler()
+  
+   #remove Target output from list of columns to be scaled
+   cols_to_scale = X.drop(columns=["ID"]).select_dtypes(include='number').columns
+
+   df_scaled = X.copy()
+
+   df_scaled[cols_to_scale] = scaler.fit_transform(df_scaled[cols_to_scale])
+
+   return df_scaled
+
+  
+  
+  def fit(self, X, Y=None):
+        # Fit the scaler only on training X
+        X_prime = self.drop_area_perimeter_cols(X)
+        X_transformed = self.log_transform_dueto_skew(X_prime, True)
+
+        numeric_colums = X_transformed.select_dtypes(include='number').columns
+        self.scaler.fit(X_transformed[numeric_colums])
+        return self
+
+
+  def transform(self, X, Y=None):
+
+        X_prime = self.drop_area_perimeter_cols(X)
+        X_transformed = self.log_transform_dueto_skew(X_prime, False)
+        numeric_colums = X_transformed.select_dtypes(include='number').columns
+
+        X_transformed[numeric_colums] = self.scaler.transform(X_transformed[numeric_colums])
+
+        if Y is not None:
+            return X_transformed, Y
+
+        return X_transformed

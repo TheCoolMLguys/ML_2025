@@ -1,6 +1,6 @@
 import pandas as pd 
 import numpy as np 
-from Preprocessing_all import Ozone_preprocessing, Personality_type_preprocessing
+from Preprocessing_all import Ozone_preprocessing, Personality_type_preprocessing, breast_cancer_preprocessing
 from sklearn.pipeline import make_pipeline
 from sklearn.model_selection import train_test_split, GridSearchCV, cross_validate, KFold
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, make_scorer
@@ -196,12 +196,14 @@ if __name__ == '__main__':
 
     df_ozone = pd.read_csv("data"+ os.sep + "ozone_level_data.csv")
     df_personality = pd.read_csv("data"+ os.sep + "personality_types_data_v2.csv")
+    df_breast_cancer = pd.read_csv("data"+ os.sep + "breast-cancer-diagnostic.shuf.lrn.csv")
     
 
     # Define the dataset dictionary
 
     datasets = {"Personality_type": [df_personality, "Personality", Personality_type_preprocessing],
-                "Ozone_level": [df_ozone, "Ozone", Ozone_preprocessing]}
+                "Ozone_level": [df_ozone, "Ozone", Ozone_preprocessing],
+                "Breast_cancer": [df_breast_cancer, "class", breast_cancer_preprocessing]}
 
     run(datasets)
     
