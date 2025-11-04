@@ -1,6 +1,6 @@
 import pandas as pd 
 import os
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.base import BaseEstimator, TransformerMixin
 from scipy.stats import skew
 import numpy as np
@@ -19,22 +19,10 @@ class Personality_type_preprocessing(BaseEstimator, TransformerMixin):
   def impute_data(self, X, Y=None):
 
      categorical_columns = ['Gender', 'Interest']
+
      X_encoded = pd.get_dummies(X, columns=categorical_columns, dtype='int')
     
      return X_encoded, Y
-
-
-  def apply_standarization(self, X):
-
-    scaler = StandardScaler()
-  
-    cols_to_scale = X.select_dtypes(include='number').columns
-
-    df_scaled = X.copy()
-
-    df_scaled[cols_to_scale] = scaler.fit_transform(df_scaled[cols_to_scale])
-
-    return df_scaled
 
   
   
@@ -111,21 +99,6 @@ class Ozone_preprocessing(BaseEstimator, TransformerMixin):
 
     return X, Y
 
-
-  def apply_standarization(self, X):
-
-    scaler = StandardScaler()
-  
-    #remove Target output from list of columns to be scaled
-    cols_to_scale = X.select_dtypes(include='number').columns
-
-    df_scaled = X.copy()
-
-    df_scaled[cols_to_scale] = scaler.fit_transform(df_scaled[cols_to_scale])
-
-    return df_scaled
-
-  
   
   def fit(self, X, Y=None):
 
@@ -228,3 +201,57 @@ class breast_cancer_preprocessing(BaseEstimator, TransformerMixin):
             return X_transformed, Y
 
         return X_transformed
+
+
+
+class loan_preprocessing(BaseEstimator, TransformerMixin):
+
+    def __init__(self):
+
+      self.scaler = StandardScaler()
+
+
+    def simple_preprocess(self, X):
+
+
+      drop_cols = ['ID', 'loan_status']
+      X = X.drop(columns=drop_cols, errors='ignore')
+      original_features = X.columns.tolist()
+
+      categorical_cols = X.select_dtypes(include=['object']).columns
+
+      for col in categorical_cols:
+         le = LabelEncoder()
+         le.fit(X[col])
+
+         X[col] = le.transform(X[col].astype(str))
+
+
+      return X 
+
+
+    
+    def fit(self, X, Y=None):
+     
+        X_transformed = self.simple_preprocess(X)
+
+        numeric_colums = X_transformed.select_dtypes(include='number').columns
+        self.scaler.fit(X_transformed[numeric_colums])
+        return self
+
+
+
+
+    def transform(self, X, Y=None):
+
+        X_transformed = self.simple_preprocess(X)
+        numeric_colums = X_transformed.select_dtypes(include='number').columns
+
+        X_transformed[numeric_colums] = self.scaler.transform(X_transformed[numeric_colums])
+
+        if Y is not None:
+            return X_transformed, Y
+
+        return X_transformed
+
+
