@@ -144,23 +144,24 @@ class breast_cancer_preprocessing(BaseEstimator, TransformerMixin):
 
   def log_transform_dueto_skew(self, X, fit=False):
    
-   df_log = X.copy()
-
-   numeric_cols = X.drop(columns=["ID"]).select_dtypes(include='number').columns
-   
    if fit:
+     df_log = X.copy()
+     numeric_cols = X.drop(columns=["ID"]).select_dtypes(include='number').columns
+     
      skewness_values = df_log[numeric_cols].apply(lambda x: skew(x, bias=False))
      self.highly_skewed = skewness_values[abs(skewness_values) >= 3].index
-
-   # make sure there are no negative values
-   min_vals = df_log[self.highly_skewed].min()
-   shifts = (min_vals <= 0) * (-min_vals + 1)
-
-   log_transformed = np.log1p(df_log[self.highly_skewed] + shifts).rename(columns=lambda x: f"log_{x}")
-   df_log = df_log.drop(columns=self.highly_skewed)
-   df_log = pd.concat([df_log, log_transformed], axis = 1)
-
-   return df_log
+     
+     # make sure there are no negative values
+     min_vals = df_log[self.highly_skewed].min()
+     shifts = (min_vals <= 0) * (-min_vals + 1)
+     log_transformed = np.log1p(df_log[self.highly_skewed] + shifts).rename(columns=lambda x: f"log_{x}")
+     
+     df_log = df_log.drop(columns=self.highly_skewed)
+     df_log = pd.concat([df_log, log_transformed], axis = 1)
+     
+     return df_log
+   
+   return X
 
 
 
