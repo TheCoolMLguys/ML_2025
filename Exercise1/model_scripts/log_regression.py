@@ -240,14 +240,13 @@ def run(datasets):
         pip_balanced_best = Pipeline([('preprocessing',preprocessing_class_instance), ('smote', SMOTE(random_state=42)), ('model', LogisticRegression(**{k.split("__")[1]: v for k, v in grid_search.best_params_.items()}, random_state=42))])
         kf_balanced = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
-        scorer_balanced = cross_val_metrics() 
 
         cv_results_balanced = cross_validate(
             pip_balanced,
             X_train,
             y_train,
             cv=kf_balanced,
-            scoring=scorer,
+            scoring=scorer_macro,
             return_train_score=True,
             n_jobs=-1)
 
@@ -256,11 +255,11 @@ def run(datasets):
             X_train,
             y_train,
             cv=kf_balanced,
-            scoring=scorer,
+            scoring=scorer_macro,
             return_train_score=True,
             n_jobs=-1)
         
-        for metric_balanced in scorer.keys():
+        for metric_balanced in scorer_macro.keys():
            print('Default model parameters after balancing')
            print(f"Train {metric_balanced}: {np.mean(cv_results_balanced[f'train_{metric_balanced}']):.4f} ± {np.std(cv_results_balanced[f'train_{metric_balanced}']):.4f}")
            print(f"Validation {metric_balanced}: {np.mean(cv_results_balanced[f'test_{metric_balanced}']):.4f} ± {np.std(cv_results_balanced[f'test_{metric_balanced}']):.4f}")
@@ -283,7 +282,7 @@ def run(datasets):
 
         pip_reduced =  make_pipeline(preprocessing_class_instance, SelectKBest(score_func=f_classif, k=30) , LogisticRegression(random_state=42)) 
         
-        kf_reduced = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+        kf_reduced = KFold(n_splits=5, shuffle=True, random_state=42)
 
 
         cv_results_reduced = cross_validate(
@@ -291,12 +290,12 @@ def run(datasets):
             X_train,
             y_train,
             cv=kf_reduced,
-            scoring=scorer_balanced,
+            scoring=scorer_macro,
             return_train_score=True,
             n_jobs=-1)
 
         
-        for metric_reduced in scorer.keys():
+        for metric_reduced in scorer_macro.keys():
            print('Default model parameters after balancing')
            print(f"Train {metric_reduced}: {np.mean(cv_results_reduced[f'train_{metric_reduced}']):.4f} ± {np.std(cv_results_reduced[f'train_{metric_reduced}']):.4f}")
            print(f"Validation {metric_reduced}: {np.mean(cv_results_reduced[f'test_{metric_reduced}']):.4f} ± {np.std(cv_results_reduced[f'test_{metric_reduced}']):.4f}")
