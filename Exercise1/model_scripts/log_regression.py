@@ -2,11 +2,13 @@ import pandas as pd
 import numpy as np 
 from Preprocessing_all import Ozone_preprocessing, Personality_type_preprocessing, breast_cancer_preprocessing, loan_preprocessing
 from sklearn.pipeline import make_pipeline
-from sklearn.model_selection import train_test_split, GridSearchCV, cross_validate, KFold
+from sklearn.model_selection import train_test_split, GridSearchCV, cross_validate, KFold, StratifiedKFold
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, make_scorer
 from sklearn.linear_model import LogisticRegression
+from imblearn.over_sampling import SMOTE
+from sklearn.feature_selection import SelectKBest, f_classif
+from imblearn.pipeline import Pipeline
 import time
-import pickle 
 import os
 import warnings
 
@@ -47,7 +49,7 @@ def split_dataset(df, target_column, test_set_size):
     y = df[target_column]
 
 
-    X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size=test_set_size, random_state=42)
+    X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size=test_set_size, random_state=42) 
 
     return X_train, y_train, X_valid, y_valid
 
@@ -65,24 +67,25 @@ def train_dataset(model, X_train, y_train, X_valid):
     return y_pred, train_time
 
 
-def evaluate_dataset(y_valid, y_pred, train_time):
+def evaluate_dataset(y_valid, y_pred, train_time, averaging='macro'):
 
+    
 
     return {
             "accuracy": accuracy_score(y_valid, y_pred),
-            "precision": precision_score(y_valid, y_pred, average='macro', zero_division=1),
-            "recall": recall_score(y_valid, y_pred, average='macro', zero_division=1),
-            "f1_score": f1_score(y_valid, y_pred, average='macro'),
+            "precision": precision_score(y_valid, y_pred, average=averaging, zero_division=1),
+            "recall": recall_score(y_valid, y_pred, average=averaging, zero_division=1),
+            "f1_score": f1_score(y_valid, y_pred, average=averaging),
             "training_time": train_time }
 
 
-def cross_val_metrics():
+def cross_val_metrics(averaging='macro'):
       
         return {
             "accuracy": 'accuracy',
-            "precision": make_scorer(precision_score, average='macro', zero_division=1),
-            "recall": make_scorer(recall_score, average='macro', zero_division=1),
-            "f1": make_scorer(f1_score, average='macro') }
+            "precision": make_scorer(precision_score, average=averaging, zero_division=1),
+            "recall": make_scorer(recall_score, average=averaging, zero_division=1),
+            "f1": make_scorer(f1_score, average=averaging) }
 
 
 def run(datasets):
@@ -104,28 +107,33 @@ def run(datasets):
 
 
         #Set up pipeline with preprocessing class and model
-        pipeline = make_pipeline(preprocessing_class_instance, LogisticRegression( random_state=42)) #class_weight='balanced'
+        pipeline = make_pipeline(preprocessing_class_instance, LogisticRegression(random_state=42)) 
  
-        # if we want to see the output of preprocessing
-        #X_train_scaled, y_train = pipeline.named_steps['ozone_preprocessing'].transform(X_train, y_train)
         
         # Train model by using pipeline object with holdout method
         y_pred, train_time = train_dataset(pipeline, X_train, y_train, X_valid)
         
         #Evaluate performance
-        metrics = evaluate_dataset(y_valid, y_pred, train_time)
+        metrics_macro = evaluate_dataset(y_valid, y_pred, train_time, 'macro')
+        metrics_weighted = evaluate_dataset(y_valid, y_pred, train_time, 'weighted')
 
-        print(metrics)
-
+        print('Metrics with macro averaging')
+        print(metrics_macro)
+        print('Metrics with weighted averaging')
+        print(metrics_weighted)
         
+
+
         #### Cross-validation #####
 
         #Initiate k-fold cross validation
         print('#'*30)
         print('Results for 5-fold Cross-validation')
         kf = KFold(n_splits=5, shuffle=True, random_state=42)
+       
 
-        scorer = cross_val_metrics() 
+        scorer_macro = cross_val_metrics('macro') 
+        scorer_weighted = cross_val_metrics('weighted')
 
         # Run cross-validation
         cv_results = cross_validate(
@@ -133,16 +141,46 @@ def run(datasets):
             X_train,
             y_train,
             cv=kf,
-            scoring=scorer,
+            scoring=scorer_macro,
+            return_train_score=True,
+            n_jobs=-1)
+
+        cv_results_weighted = cross_validate(
+            pipeline,
+            X_train,
+            y_train,
+            cv=kf,
+            scoring=scorer_weighted,
             return_train_score=True,
             n_jobs=-1)
         
-        for metric in scorer.keys():
+
+        print('Metrics acquired with macro averaging')
+        for metric in scorer_macro.keys():
+           print('Default parameters')
            print(f"Train {metric}: {np.mean(cv_results[f'train_{metric}']):.4f} ± {np.std(cv_results[f'train_{metric}']):.4f}")
+           print('Best parameters')
            print(f"Validation {metric}: {np.mean(cv_results[f'test_{metric}']):.4f} ± {np.std(cv_results[f'test_{metric}']):.4f}")
 
         print(f"Mean fit time: {np.mean(cv_results['fit_time']):.3f} s ± {np.std(cv_results['fit_time']):.3f}")
        
+        print('########################################')
+
+        print('Metrics acquired with weighted averaging')
+        for metric in scorer_weighted.keys():
+           print('Default parameters')
+           print(f"Train {metric}: {np.mean(cv_results_weighted[f'train_{metric}']):.4f} ± {np.std(cv_results_weighted[f'train_{metric}']):.4f}")
+           print('Best parameters')
+           print(f"Validation {metric}: {np.mean(cv_results_weighted[f'test_{metric}']):.4f} ± {np.std(cv_results_weighted[f'test_{metric}']):.4f}")
+
+        print(f"Mean fit time: {np.mean(cv_results_weighted['fit_time']):.3f} s ± {np.std(cv_results_weighted['fit_time']):.3f}")
+
+
+
+
+
+
+
         ### Perform hyper-parameter tuning ####
         print('#'*30)
         print('Results from Grid Search')
@@ -160,7 +198,7 @@ def run(datasets):
      
 
         #Show all results from Grid Search
-        # To-Do find a better way to print the metrics per hyperparameter combination
+
 
         print('Best parameters for model based on grid search are:')
  
@@ -192,8 +230,81 @@ def run(datasets):
         print('Metrics with hold-out method after using best parameters')
         print(metrics_best)
 
+        #####################################################################
+        ###### Test impact of balancing
+
+        print('#'*30)
+        print('Test impact of balancing')
+
+        pip_balanced = Pipeline([('preprocessing',preprocessing_class_instance), ('smote', SMOTE(random_state=42)), ('model', LogisticRegression(random_state=42))])
+        pip_balanced_best = Pipeline([('preprocessing',preprocessing_class_instance), ('smote', SMOTE(random_state=42)), ('model', LogisticRegression(**{k.split("__")[1]: v for k, v in grid_search.best_params_.items()}, random_state=42))])
+        kf_balanced = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+        scorer_balanced = cross_val_metrics() 
+
+        cv_results_balanced = cross_validate(
+            pip_balanced,
+            X_train,
+            y_train,
+            cv=kf_balanced,
+            scoring=scorer,
+            return_train_score=True,
+            n_jobs=-1)
+
+        cv_results_balanced_best = cross_validate(
+            pip_balanced_best,
+            X_train,
+            y_train,
+            cv=kf_balanced,
+            scoring=scorer,
+            return_train_score=True,
+            n_jobs=-1)
+        
+        for metric_balanced in scorer.keys():
+           print('Default model parameters after balancing')
+           print(f"Train {metric_balanced}: {np.mean(cv_results_balanced[f'train_{metric_balanced}']):.4f} ± {np.std(cv_results_balanced[f'train_{metric_balanced}']):.4f}")
+           print(f"Validation {metric_balanced}: {np.mean(cv_results_balanced[f'test_{metric_balanced}']):.4f} ± {np.std(cv_results_balanced[f'test_{metric_balanced}']):.4f}")
+           print('Best model parameters after balancing')
+           
+           print(f"Train {metric_balanced}: {np.mean(cv_results_balanced_best[f'train_{metric_balanced}']):.4f} ± {np.std(cv_results_balanced_best[f'train_{metric_balanced}']):.4f}")
+           print(f"Validation {metric_balanced}: {np.mean(cv_results_balanced_best[f'test_{metric_balanced}']):.4f} ± {np.std(cv_results_balanced_best[f'test_{metric_balanced}']):.4f}")
+           print('#'*20)
+
+        print(f"Mean fit time: {np.mean(cv_results_balanced['fit_time']):.3f} s ± {np.std(cv_results_balanced['fit_time']):.3f}")
+        print(f"Mean fit time: {np.mean(cv_results_balanced_best['fit_time']):.3f} s ± {np.std(cv_results_balanced_best['fit_time']):.3f}")
+        
+
+        ###########################################################################
+        ########Test impact of feature reduction 
 
 
+        print('#'*30)
+        print('Test impact of feature reduction')
+
+        pip_reduced =  make_pipeline(preprocessing_class_instance, SelectKBest(score_func=f_classif, k=30) , LogisticRegression(random_state=42)) 
+        
+        kf_reduced = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+
+        cv_results_reduced = cross_validate(
+            pip_reduced,
+            X_train,
+            y_train,
+            cv=kf_reduced,
+            scoring=scorer_balanced,
+            return_train_score=True,
+            n_jobs=-1)
+
+        
+        for metric_reduced in scorer.keys():
+           print('Default model parameters after balancing')
+           print(f"Train {metric_reduced}: {np.mean(cv_results_reduced[f'train_{metric_reduced}']):.4f} ± {np.std(cv_results_reduced[f'train_{metric_reduced}']):.4f}")
+           print(f"Validation {metric_reduced}: {np.mean(cv_results_reduced[f'test_{metric_reduced}']):.4f} ± {np.std(cv_results_reduced[f'test_{metric_reduced}']):.4f}")
+
+
+        print(f"Mean fit time: {np.mean(cv_results_reduced['fit_time']):.3f} s ± {np.std(cv_results_reduced['fit_time']):.3f}")
+
+  
         # Ozone - remove hourly data
 
         if keys=='Ozone_level':
@@ -206,7 +317,7 @@ def run(datasets):
             df = data[0].drop(columns = cols_to_drop)
             X_train_red, y_train_red, X_valid_red, y_valid_red = split_dataset(df, data[1], 0.2)
 
-            pipeline_red = make_pipeline(preprocessing_class_instance, LogisticRegression( random_state=42)) # class_weight='balanced',
+            pipeline_red = make_pipeline(preprocessing_class_instance, LogisticRegression( random_state=42)) 
  
             y_pred_red, train_time_red = train_dataset(pipeline_red, X_train_red, y_train_red, X_valid_red)
             metrics_red = evaluate_dataset(y_valid_red, y_pred_red, train_time_red)
@@ -226,9 +337,9 @@ if __name__ == '__main__':
 
     # Define the dataset dictionary
 
-    datasets = {"Personality_type": [df_personality, "Personality", Personality_type_preprocessing],
-                "Ozone_level": [df_ozone, "Ozone", Ozone_preprocessing],
-                "Breast_cancer": [df_breast_cancer, "class", breast_cancer_preprocessing],
+    datasets = {#"Personality_type": [df_personality, "Personality", Personality_type_preprocessing],
+                #"Ozone_level": [df_ozone, "Ozone", Ozone_preprocessing],
+               # "Breast_cancer": [df_breast_cancer, "class", breast_cancer_preprocessing],
                 "Loan": [df_loan, "grade", loan_preprocessing]
                 }
 
