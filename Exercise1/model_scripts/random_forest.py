@@ -100,6 +100,7 @@ def run(datasets):
     for keys, data in datasets.items():
         
         print("#"*30)
+        print("#"*30)
         #print('Data Exploration')
 
         #data_exploration(data[0], data[1])
@@ -127,6 +128,7 @@ def run(datasets):
 
         #Initiate k-fold cross validation
         print('#'*30)
+        print("#"*30)
         print('Results for 5-fold Cross-validation')
         kf = KFold(n_splits=5, shuffle=True, random_state=42)
 
@@ -152,6 +154,7 @@ def run(datasets):
 
         ### Perform hyper-parameter tuning ####
         print('#'*30)
+        print("#"*30)
         print('Results from Grid Search')
        
         params_grid = [{
@@ -202,6 +205,7 @@ def run(datasets):
         ###### Test impact of balancing
 
         print('#'*30)
+        print("#"*30)
         print('Test impact of balancing')
 
         pip_balanced = Pipeline([('preprocessing',preprocessing_class_instance), ('smote', SMOTE(random_state=42)), ('model', RandomForestClassifier(random_state=42))])
@@ -246,6 +250,7 @@ def run(datasets):
 
 
         print('#'*30)
+        print("#"*30)
         print('Test impact of feature reduction')
 
         pip_reduced =  make_pipeline(preprocessing_class_instance, SelectKBest(score_func=f_classif, k=30) , RandomForestClassifier(random_state=42)) 
@@ -308,8 +313,8 @@ if __name__ == '__main__':
 
     # Define the dataset dictionary
 
-    datasets = {#"Personality_type": [df_personality, "Personality", Personality_type_preprocessing],
-                #"Ozone_level": [df_ozone, "Ozone", Ozone_preprocessing],
+    datasets = {"Personality_type": [df_personality, "Personality", Personality_type_preprocessing],
+                "Ozone_level": [df_ozone, "Ozone", Ozone_preprocessing],
                 "Breast_cancer": [df_breast_cancer, "class", breast_cancer_preprocessing],
                 "Loan": [df_loan, "grade", loan_preprocessing]}
 

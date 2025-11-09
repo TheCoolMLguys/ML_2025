@@ -167,21 +167,6 @@ class breast_cancer_preprocessing(BaseEstimator, TransformerMixin):
    return X
 
 
-  # applies standardization 
-  def apply_standardization(self, X):
-  
-   # choose standard scaler
-   scaler = RobustScaler()
-  
-   #remove Target output from list of columns to be scaled
-   cols_to_scale = X.drop(['class']).select_dtypes(include='number').columns
-
-   df_scaled = X.copy()
-
-   df_scaled[cols_to_scale] = scaler.fit_transform(df_scaled[cols_to_scale])
-
-   return df_scaled
-
   
   def fit(self, X, Y=None):
         # Fit the scaler only on training X
