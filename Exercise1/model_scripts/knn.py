@@ -57,23 +57,39 @@ def train_dataset(model, X_train, y_train, X_valid):
     return y_pred, train_time
 
 
-def evaluate_dataset(y_valid, y_pred, train_time, averaging='macro'):
-    return {
-        "accuracy": accuracy_score(y_valid, y_pred),
-        "precision": precision_score(y_valid, y_pred, average=averaging, zero_division=1),
-        "recall": recall_score(y_valid, y_pred, average=averaging, zero_division=1),
-        "f1_score": f1_score(y_valid, y_pred, average=averaging),
-        "training_time": train_time
-    }
+def evaluate_dataset(y_valid, y_pred, train_time, average='macro'):
+    if average == 'macro':
+        return {
+            "accuracy": accuracy_score(y_valid, y_pred),
+            "precision": precision_score(y_valid, y_pred, average='macro', zero_division=1),
+            "recall": recall_score(y_valid, y_pred, average='macro', zero_division=1),
+            "f1": f1_score(y_valid, y_pred, average='macro'),
+            "training_time": train_time
+        }
+    elif average == 'weighted':
+        return {
+            "accuracy": accuracy_score(y_valid, y_pred),
+            "precision": precision_score(y_valid, y_pred, average='weighted', zero_division=1),
+            "recall": recall_score(y_valid, y_pred, average='weighted', zero_division=1),
+            "f1": f1_score(y_valid, y_pred, average='weighted'),
+            "training_time": train_time
+        }
 
-
-def cross_val_metrics(averaging='macro'):
-    return {
-        "accuracy": 'accuracy',
-        "precision": make_scorer(precision_score, average=averaging, zero_division=1),
-        "recall": make_scorer(recall_score, average=averaging, zero_division=1),
-        "f1": make_scorer(f1_score, average=averaging)
-    }
+def cross_val_metrics(average='macro'):
+    if average == 'macro':
+        return {
+            "accuracy": 'accuracy',
+            "precision": make_scorer(precision_score, average='macro', zero_division=1),
+            "recall": make_scorer(recall_score, average='macro', zero_division=1),
+            "f1": make_scorer(f1_score, average='macro')
+        }
+    elif average == 'weighted':
+        return {
+            "accuracy": 'accuracy',
+            "precision": make_scorer(precision_score, average='weighted', zero_division=1),
+            "recall": make_scorer(recall_score, average='weighted', zero_division=1),
+            "f1": make_scorer(f1_score, average='weighted')
+        }
 
 
 def run(datasets):
@@ -165,23 +181,13 @@ def run(datasets):
         print('#' * 30)
         print('Results from Grid Search')
 
-        # weighted for Loan, macro for others
-        if keys == 'Loan':
-            scoring = {
-                'acc': 'accuracy',
-                'f1': 'f1_weighted',
-                'precision': 'precision_weighted',
-                'recall': 'recall_weighted'
-            }
-            refit_metric = 'f1'
-        else:
-            scoring = {
-                'acc': 'accuracy',
-                'f1': 'f1_macro',
-                'precision': 'precision_macro',
-                'recall': 'recall_macro'
-            }
-            refit_metric = 'f1'
+        scoring = {'acc': 'accuracy',
+                    'f1_macro': 'f1_macro',
+                    'precision_macro': 'precision_macro',
+                    'recall_macro': 'recall_macro',
+                    'f1_w': 'f1_weighted',
+                    'precision_w': 'precision_weighted',
+                    'recall_w': 'recall_weighted'}
 
         params_grid = [{
             'kneighborsclassifier__n_neighbors': [3, 5, 7, 9, 11, 15, 21],
@@ -195,22 +201,12 @@ def run(datasets):
             params_grid,
             cv=5,
             scoring=scoring,
-            refit=refit_metric,
+            refit='f1_macro',
             error_score='raise',
             n_jobs=-1
         )
         grid_search.fit(X_train, y_train)
 
-        print('Best parameters for model based on grid search are:')
-        print(grid_search.best_params_)
-        print('Best score for model based on grid search is:')
-        print(grid_search.best_score_)
-
-        results_df = pd.DataFrame(grid_search.cv_results_)
-        metric_cols = [col for col in results_df.columns if 'mean_' in col or 'std_' in col]
-        summary_df = results_df[['params'] + metric_cols]
-
-        summary_df = summary_df.sort_values('mean_test_f1', ascending=False)
 
         # Show all results from Grid Search
 
