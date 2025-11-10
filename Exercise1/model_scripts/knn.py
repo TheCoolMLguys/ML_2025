@@ -211,6 +211,22 @@ def run(datasets):
         summary_df = results_df[['params'] + metric_cols]
 
         summary_df = summary_df.sort_values('mean_test_f1', ascending=False)
+
+        # Show all results from Grid Search
+
+        print('Best parameters for model based on grid search are:')
+
+        print(grid_search.best_params_)
+        print('Best score for model based on grid search is:')
+        print(grid_search.best_score_)
+
+        results_df = pd.DataFrame(grid_search.cv_results_)
+
+        metric_cols = [col for col in results_df.columns if 'mean_' in col or 'std_' in col]
+        summary_df = results_df[['params'] + metric_cols]
+
+        summary_df = summary_df.sort_values('mean_test_f1_macro', ascending=False)
+
         summary_df.to_csv(f'overview_{keys}_KNN.csv', index=False)
 
         # Use best parameters to your model - hold out method
@@ -271,7 +287,7 @@ def run(datasets):
         kf_balanced = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
         # Cross-validation with balanced pipelines (using macro scoring)
-        cv_results_balanced = cross_validate(
+        cv_results_balanced_scorer_macro = cross_validate(
             pip_balanced,
             X_train,
             y_train,
@@ -280,7 +296,7 @@ def run(datasets):
             return_train_score=True,
             n_jobs=-1)
 
-        cv_results_balanced_best = cross_validate(
+        cv_results_balanced_best_scorer_macro = cross_validate(
             pip_balanced_best,
             X_train,
             y_train,
@@ -289,23 +305,62 @@ def run(datasets):
             return_train_score=True,
             n_jobs=-1)
 
+        cv_results_balanced_scorer_weighted = cross_validate(
+            pip_balanced,
+            X_train,
+            y_train,
+            cv=kf_balanced,
+            scoring=scorer_weighted,
+            return_train_score=True,
+            n_jobs=-1)
+
+        cv_results_balanced_best_scorer_weighted = cross_validate(
+            pip_balanced_best,
+            X_train,
+            y_train,
+            cv=kf_balanced,
+            scoring=scorer_weighted,
+            return_train_score=True,
+            n_jobs=-1)
+
         for metric in scorer_macro.keys():
-            print('Default model parameters after balancing')
+            print('Default model parameters after balancing (macro)')
             print(
-                f"Train {metric}: {np.mean(cv_results_balanced[f'train_{metric}']):.4f} ± {np.std(cv_results_balanced[f'train_{metric}']):.4f}")
+                f"Train (macro) {metric}: {np.mean(cv_results_balanced_scorer_macro[f'train_{metric}']):.4f} ± {np.std(cv_results_balanced_scorer_macro[f'train_{metric}']):.4f}")
             print(
-                f"Validation {metric}: {np.mean(cv_results_balanced[f'test_{metric}']):.4f} ± {np.std(cv_results_balanced[f'test_{metric}']):.4f}")
-            print('Best model parameters after balancing')
+                f"Validation (macro) {metric}: {np.mean(cv_results_balanced_scorer_macro[f'test_{metric}']):.4f} ± {np.std(cv_results_balanced_scorer_macro[f'test_{metric}']):.4f}")
+            print('Best model parameters after balancing (macro)')
             print(
-                f"Train {metric}: {np.mean(cv_results_balanced_best[f'train_{metric}']):.4f} ± {np.std(cv_results_balanced_best[f'train_{metric}']):.4f}")
+                f"Train {metric}: (macro) {np.mean(cv_results_balanced_best_scorer_macro[f'train_{metric}']):.4f} ± {np.std(cv_results_balanced_best_scorer_macro[f'train_{metric}']):.4f}")
             print(
-                f"Validation {metric}: {np.mean(cv_results_balanced_best[f'test_{metric}']):.4f} ± {np.std(cv_results_balanced_best[f'test_{metric}']):.4f}")
+                f"Validation (macro) {metric}: {np.mean(cv_results_balanced_best_scorer_macro[f'test_{metric}']):.4f} ± {np.std(cv_results_balanced_best_scorer_macro[f'test_{metric}']):.4f}")
             print('#' * 20)
 
         print(
-            f"Mean fit time (default): {np.mean(cv_results_balanced['fit_time']):.3f} s ± {np.std(cv_results_balanced['fit_time']):.3f}")
+            f"Mean fit time (default) (macro) : {np.mean(cv_results_balanced_scorer_macro['fit_time']):.3f} s ± {np.std(cv_results_balanced_scorer_macro['fit_time']):.3f}")
         print(
-            f"Mean fit time (best): {np.mean(cv_results_balanced_best['fit_time']):.3f} s ± {np.std(cv_results_balanced_best['fit_time']):.3f}")
+            f"Mean fit time (best) (macro) : {np.mean(cv_results_balanced_best_scorer_macro['fit_time']):.3f} s ± {np.std(cv_results_balanced_best_scorer_macro['fit_time']):.3f}")
+
+
+        for metric in scorer_weighted.keys():
+            print('Default model parameters after balancing (weighted)')
+            print(
+                f"Train (weighted) {metric}: {np.mean(cv_results_balanced_scorer_weighted[f'train_{metric}']):.4f} ± {np.std(cv_results_balanced_scorer_weighted[f'train_{metric}']):.4f}")
+            print(
+                f"Validation (weighted) {metric}: {np.mean(cv_results_balanced_scorer_weighted[f'test_{metric}']):.4f} ± {np.std(cv_results_balanced_scorer_weighted[f'test_{metric}']):.4f}")
+            print('Best model parameters after balancing (weighted)')
+            print(
+                f"Train (weighted){metric}: {np.mean(cv_results_balanced_best_scorer_weighted[f'train_{metric}']):.4f} ± {np.std(cv_results_balanced_best_scorer_weighted[f'train_{metric}']):.4f}")
+            print(
+                f"Validation (weighted){metric}: {np.mean(cv_results_balanced_best_scorer_weighted[f'test_{metric}']):.4f} ± {np.std(cv_results_balanced_best_scorer_weighted[f'test_{metric}']):.4f}")
+            print('#' * 20)
+
+        print(
+            f"Mean fit time (default) (weighted): {np.mean(cv_results_balanced_scorer_weighted['fit_time']):.3f} s ± {np.std(cv_results_balanced_scorer_weighted['fit_time']):.3f}")
+        print(
+            f"Mean fit time (best) (weighted): {np.mean(cv_results_balanced_best_scorer_weighted['fit_time']):.3f} s ± {np.std(cv_results_balanced_best_scorer_weighted['fit_time']):.3f}")
+
+
 
         ###########################################################################
         ######## Test impact of feature reduction (for ALL datasets)
@@ -320,7 +375,7 @@ def run(datasets):
 
         kf_reduced = KFold(n_splits=5, shuffle=True, random_state=42)
 
-        cv_results_reduced = cross_validate(
+        cv_results_reduced_macro = cross_validate(
             pip_reduced,
             X_train,
             y_train,
@@ -329,11 +384,26 @@ def run(datasets):
             return_train_score=True,
             n_jobs=-1)
 
-        for metric in scorer_macro.keys():
-            print(f"Train {metric}: {np.mean(cv_results_reduced[f'train_{metric}']):.4f} ± {np.std(cv_results_reduced[f'train_{metric}']):.4f}")
-            print(f"Validation {metric}: {np.mean(cv_results_reduced[f'test_{metric}']):.4f} ± {np.std(cv_results_reduced[f'test_{metric}']):.4f}")
+        cv_results_reduced_weighted = cross_validate(
+            pip_reduced,
+            X_train,
+            y_train,
+            cv=kf_reduced,
+            scoring=scorer_weighted,
+            return_train_score=True,
+            n_jobs=-1)
 
-        print(f"Mean fit time: {np.mean(cv_results_reduced['fit_time']):.3f} s ± {np.std(cv_results_reduced['fit_time']):.3f}")
+        for metric in scorer_macro.keys():
+            print(f"Train (macro) {metric}: {np.mean(cv_results_reduced_macro[f'train_{metric}']):.4f} ± {np.std(cv_results_reduced_macro[f'train_{metric}']):.4f}")
+            print(f"Validation (macro) {metric}: {np.mean(cv_results_reduced_macro[f'test_{metric}']):.4f} ± {np.std(cv_results_reduced_macro[f'test_{metric}']):.4f}")
+
+        print(f"Mean fit time (macro): {np.mean(cv_results_reduced_macro['fit_time']):.3f} s ± {np.std(cv_results_reduced_macro['fit_time']):.3f}")
+
+        for metric in scorer_weighted.keys():
+            print(f"Train (weighted) {metric}: {np.mean(cv_results_reduced_weighted[f'train_{metric}']):.4f} ± {np.std(cv_results_reduced_weighted[f'train_{metric}']):.4f}")
+            print(f"Validation (weighted) {metric}: {np.mean(cv_results_reduced_weighted[f'test_{metric}']):.4f} ± {np.std(cv_results_reduced_weighted[f'test_{metric}']):.4f}")
+
+        print(f"Mean fit time (weighted): {np.mean(cv_results_reduced_weighted['fit_time']):.3f} s ± {np.std(cv_results_reduced_weighted['fit_time']):.3f}")
 
         # Ozone - remove hourly data (special case - same as Logistic Regression)
         if keys == 'Ozone_level':
