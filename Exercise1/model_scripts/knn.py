@@ -1,6 +1,9 @@
 import pandas as pd
 import numpy as np
 from sklearn.feature_selection import SelectKBest, f_classif
+from imblearn.over_sampling import SMOTE
+from imblearn.pipeline import Pipeline as ImbPipeline
+from sklearn.model_selection import StratifiedKFold
 
 from Preprocessing_all import Ozone_preprocessing, Personality_type_preprocessing, breast_cancer_preprocessing, \
     loan_preprocessing
@@ -54,60 +57,23 @@ def train_dataset(model, X_train, y_train, X_valid):
     return y_pred, train_time
 
 
-def evaluate_dataset(y_valid, y_pred, train_time, dataset_name='default'):
-    # Used weighted averaging for Loan dataset, macro for others
-    average_method = 'weighted' if dataset_name == 'Loan' else 'macro'
-
+def evaluate_dataset(y_valid, y_pred, train_time, averaging='macro'):
     return {
         "accuracy": accuracy_score(y_valid, y_pred),
-        "precision": precision_score(y_valid, y_pred, average=average_method, zero_division=1),
-        "recall": recall_score(y_valid, y_pred, average=average_method, zero_division=1),
-        "f1_score": f1_score(y_valid, y_pred, average=average_method),
-        "training_time": train_time,
-        "average_method": average_method
+        "precision": precision_score(y_valid, y_pred, average=averaging, zero_division=1),
+        "recall": recall_score(y_valid, y_pred, average=averaging, zero_division=1),
+        "f1_score": f1_score(y_valid, y_pred, average=averaging),
+        "training_time": train_time
     }
 
 
-
-def cross_val_metrics(dataset_name='default'):
-    if dataset_name == 'Loan':
-        return {
-            "accuracy": 'accuracy',
-            "precision": make_scorer(precision_score, average='weighted', zero_division=1),
-            "recall": make_scorer(recall_score, average='weighted', zero_division=1),
-            "f1": make_scorer(f1_score, average='weighted')
-        }
-    else:
-        return {
-            "accuracy": 'accuracy',
-            "precision": make_scorer(precision_score, average='macro', zero_division=1),
-            "recall": make_scorer(recall_score, average='macro', zero_division=1),
-            "f1": make_scorer(f1_score, average='macro')
-        }
-
-
-
-def find_main_metric_column(results_df, dataset_name):
-    if dataset_name == 'Loan':
-        for col in results_df.columns:
-            if 'mean_test_f1' in col and 'weighted' in col:
-                return col
-        for col in results_df.columns:
-            if 'mean_test_f1' in col:
-                return col
-    else:
-        for col in results_df.columns:
-            if 'mean_test_f1' in col and 'macro' in col:
-                return col
-        for col in results_df.columns:
-            if 'mean_test_f1' in col:
-                return col
-
-    for col in results_df.columns:
-        if 'mean_test' in col:
-            return col
-
-    return 'mean_test_score'
+def cross_val_metrics(averaging='macro'):
+    return {
+        "accuracy": 'accuracy',
+        "precision": make_scorer(precision_score, average=averaging, zero_division=1),
+        "recall": make_scorer(recall_score, average=averaging, zero_division=1),
+        "f1": make_scorer(f1_score, average=averaging)
+    }
 
 
 def run(datasets):
@@ -138,39 +104,68 @@ def run(datasets):
         # Train model by using pipeline object with holdout method
         y_pred, train_time = train_dataset(pipeline, X_train, y_train, X_valid)
 
-        # Evaluate performance
-        metrics = evaluate_dataset(y_valid, y_pred, train_time, dataset_name=keys)
-        print(metrics)
+        # Evaluate performance with both macro and weighted averaging
+        metrics_macro = evaluate_dataset(y_valid, y_pred, train_time, 'macro')
+        metrics_weighted = evaluate_dataset(y_valid, y_pred, train_time, 'weighted')
+
+        print('Metrics with macro averaging')
+        print(metrics_macro)
+        print('Metrics with weighted averaging')
+        print(metrics_weighted)
 
         #### Cross-validation #####
         print('#' * 30)
         print('Results for 5-fold Cross-validation')
         kf = KFold(n_splits=5, shuffle=True, random_state=42)
 
-        # dataset-specific metrics for cross-validation
-        scorer = cross_val_metrics(keys)
+        scorer_macro = cross_val_metrics('macro')
+        scorer_weighted = cross_val_metrics('weighted')
 
-        # Run cross-validation
-        cv_results = cross_validate(
+        # Run cross-validation with both scoring methods
+        cv_results_macro = cross_validate(
             pipeline,
             X_train,
             y_train,
             cv=kf,
-            scoring=scorer,
+            scoring=scorer_macro,
             return_train_score=True,
             n_jobs=-1)
 
-        for metric in scorer.keys():
-            print(f"Train {metric}: {np.mean(cv_results[f'train_{metric}']):.4f} ± {np.std(cv_results[f'train_{metric}']):.4f}")
-            print(f"Validation {metric}: {np.mean(cv_results[f'test_{metric}']):.4f} ± {np.std(cv_results[f'test_{metric}']):.4f}")
+        cv_results_weighted = cross_validate(
+            pipeline,
+            X_train,
+            y_train,
+            cv=kf,
+            scoring=scorer_weighted,
+            return_train_score=True,
+            n_jobs=-1)
 
-        print(f"Mean fit time: {np.mean(cv_results['fit_time']):.3f} s ± {np.std(cv_results['fit_time']):.3f}")
+        print('Metrics acquired with macro averaging')
+        for metric in scorer_macro.keys():
+            print(
+                f"Train {metric}: {np.mean(cv_results_macro[f'train_{metric}']):.4f} ± {np.std(cv_results_macro[f'train_{metric}']):.4f}")
+            print(
+                f"Validation {metric}: {np.mean(cv_results_macro[f'test_{metric}']):.4f} ± {np.std(cv_results_macro[f'test_{metric}']):.4f}")
+
+        print(
+            f"Mean fit time: {np.mean(cv_results_macro['fit_time']):.3f} s ± {np.std(cv_results_macro['fit_time']):.3f}")
+
+        print('#' * 30)
+        print('Metrics acquired with weighted averaging')
+        for metric in scorer_weighted.keys():
+            print(
+                f"Train {metric}: {np.mean(cv_results_weighted[f'train_{metric}']):.4f} ± {np.std(cv_results_weighted[f'train_{metric}']):.4f}")
+            print(
+                f"Validation {metric}: {np.mean(cv_results_weighted[f'test_{metric}']):.4f} ± {np.std(cv_results_weighted[f'test_{metric}']):.4f}")
+
+        print(
+            f"Mean fit time: {np.mean(cv_results_weighted['fit_time']):.3f} s ± {np.std(cv_results_weighted['fit_time']):.3f}")
 
         ### Perform hyper-parameter tuning ####
         print('#' * 30)
         print('Results from Grid Search')
 
-        # weighted metrics for Loan dataset, macro for others
+        # weighted for Loan, macro for others
         if keys == 'Loan':
             scoring = {
                 'acc': 'accuracy',
@@ -212,12 +207,25 @@ def run(datasets):
         print(grid_search.best_score_)
 
         results_df = pd.DataFrame(grid_search.cv_results_)
-        metric_cols = [col for col in results_df.columns if 'mean_test' in col or 'std_test' in col]
+        metric_cols = [col for col in results_df.columns if 'mean_' in col or 'std_' in col]
         summary_df = results_df[['params'] + metric_cols]
 
-        main_metric_col = find_main_metric_column(results_df, keys)
-        print(f"Sorting results by: {main_metric_col}")
-        summary_df = summary_df.sort_values(main_metric_col, ascending=False)
+        summary_df = summary_df.sort_values('mean_test_f1', ascending=False)
+
+        # Show all results from Grid Search
+
+        print('Best parameters for model based on grid search are:')
+
+        print(grid_search.best_params_)
+        print('Best score for model based on grid search is:')
+        print(grid_search.best_score_)
+
+        results_df = pd.DataFrame(grid_search.cv_results_)
+
+        metric_cols = [col for col in results_df.columns if 'mean_' in col or 'std_' in col]
+        summary_df = results_df[['params'] + metric_cols]
+
+        summary_df = summary_df.sort_values('mean_test_f1_macro', ascending=False)
 
         summary_df.to_csv(f'overview_{keys}_KNN.csv', index=False)
 
@@ -240,12 +248,164 @@ def run(datasets):
 
         y_pred_best, train_time_best = train_dataset(model_best_params, X_train, y_train, X_valid)
 
-        # Evaluate performance
-        metrics_best = evaluate_dataset(y_valid, y_pred_best, train_time_best, dataset_name=keys)
-        print('Metrics with hold-out method after using best parameters')
-        print(metrics_best)
+        # Evaluate performance with both averaging methods
+        metrics_best_macro = evaluate_dataset(y_valid, y_pred_best, train_time_best, 'macro')
+        metrics_best_weighted = evaluate_dataset(y_valid, y_pred_best, train_time_best, 'weighted')
+        print('Metrics with hold-out method after using best parameters (macro)')
+        print(metrics_best_macro)
+        print('Metrics with hold-out method after using best parameters (weighted)')
+        print(metrics_best_weighted)
 
-        # Ozone - remove hourly data
+        #####################################################################
+        ###### Test impact of balancing (SMOTE) - FOR ALL DATASETS
+        print('#' * 30)
+        print('Test impact of balancing')
+
+        # Create pipelines with SMOTE for ALL datasets
+        pip_balanced = ImbPipeline([
+            ('preprocessing', preprocessing_class_instance),
+            ('smote', SMOTE(random_state=42)),
+            ('model', KNeighborsClassifier())
+        ])
+
+        # Create balanced pipeline with best parameters (with same structure as grid search)
+        if keys == 'Loan':
+            pip_balanced_best = ImbPipeline([
+                ('preprocessing', preprocessing_class_instance),
+                ('smote', SMOTE(random_state=42)),
+                ('feature_selection', SelectKBest(score_func=f_classif, k=30)),
+                ('model', KNeighborsClassifier(**{k.split("__")[1]: v for k, v in grid_search.best_params_.items()}))
+            ])
+        else:
+            pip_balanced_best = ImbPipeline([
+                ('preprocessing', preprocessing_class_instance),
+                ('smote', SMOTE(random_state=42)),
+                ('model', KNeighborsClassifier(**{k.split("__")[1]: v for k, v in grid_search.best_params_.items()}))
+            ])
+
+        # Use StratifiedKFold for ALL SMOTE experiments
+        kf_balanced = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+        # Cross-validation with balanced pipelines (using macro scoring)
+        cv_results_balanced_scorer_macro = cross_validate(
+            pip_balanced,
+            X_train,
+            y_train,
+            cv=kf_balanced,
+            scoring=scorer_macro,
+            return_train_score=True,
+            n_jobs=-1)
+
+        cv_results_balanced_best_scorer_macro = cross_validate(
+            pip_balanced_best,
+            X_train,
+            y_train,
+            cv=kf_balanced,
+            scoring=scorer_macro,
+            return_train_score=True,
+            n_jobs=-1)
+
+        cv_results_balanced_scorer_weighted = cross_validate(
+            pip_balanced,
+            X_train,
+            y_train,
+            cv=kf_balanced,
+            scoring=scorer_weighted,
+            return_train_score=True,
+            n_jobs=-1)
+
+        cv_results_balanced_best_scorer_weighted = cross_validate(
+            pip_balanced_best,
+            X_train,
+            y_train,
+            cv=kf_balanced,
+            scoring=scorer_weighted,
+            return_train_score=True,
+            n_jobs=-1)
+
+        for metric in scorer_macro.keys():
+            print('Default model parameters after balancing (macro)')
+            print(
+                f"Train (macro) {metric}: {np.mean(cv_results_balanced_scorer_macro[f'train_{metric}']):.4f} ± {np.std(cv_results_balanced_scorer_macro[f'train_{metric}']):.4f}")
+            print(
+                f"Validation (macro) {metric}: {np.mean(cv_results_balanced_scorer_macro[f'test_{metric}']):.4f} ± {np.std(cv_results_balanced_scorer_macro[f'test_{metric}']):.4f}")
+            print('Best model parameters after balancing (macro)')
+            print(
+                f"Train {metric}: (macro) {np.mean(cv_results_balanced_best_scorer_macro[f'train_{metric}']):.4f} ± {np.std(cv_results_balanced_best_scorer_macro[f'train_{metric}']):.4f}")
+            print(
+                f"Validation (macro) {metric}: {np.mean(cv_results_balanced_best_scorer_macro[f'test_{metric}']):.4f} ± {np.std(cv_results_balanced_best_scorer_macro[f'test_{metric}']):.4f}")
+            print('#' * 20)
+
+        print(
+            f"Mean fit time (default) (macro) : {np.mean(cv_results_balanced_scorer_macro['fit_time']):.3f} s ± {np.std(cv_results_balanced_scorer_macro['fit_time']):.3f}")
+        print(
+            f"Mean fit time (best) (macro) : {np.mean(cv_results_balanced_best_scorer_macro['fit_time']):.3f} s ± {np.std(cv_results_balanced_best_scorer_macro['fit_time']):.3f}")
+
+
+        for metric in scorer_weighted.keys():
+            print('Default model parameters after balancing (weighted)')
+            print(
+                f"Train (weighted) {metric}: {np.mean(cv_results_balanced_scorer_weighted[f'train_{metric}']):.4f} ± {np.std(cv_results_balanced_scorer_weighted[f'train_{metric}']):.4f}")
+            print(
+                f"Validation (weighted) {metric}: {np.mean(cv_results_balanced_scorer_weighted[f'test_{metric}']):.4f} ± {np.std(cv_results_balanced_scorer_weighted[f'test_{metric}']):.4f}")
+            print('Best model parameters after balancing (weighted)')
+            print(
+                f"Train (weighted){metric}: {np.mean(cv_results_balanced_best_scorer_weighted[f'train_{metric}']):.4f} ± {np.std(cv_results_balanced_best_scorer_weighted[f'train_{metric}']):.4f}")
+            print(
+                f"Validation (weighted){metric}: {np.mean(cv_results_balanced_best_scorer_weighted[f'test_{metric}']):.4f} ± {np.std(cv_results_balanced_best_scorer_weighted[f'test_{metric}']):.4f}")
+            print('#' * 20)
+
+        print(
+            f"Mean fit time (default) (weighted): {np.mean(cv_results_balanced_scorer_weighted['fit_time']):.3f} s ± {np.std(cv_results_balanced_scorer_weighted['fit_time']):.3f}")
+        print(
+            f"Mean fit time (best) (weighted): {np.mean(cv_results_balanced_best_scorer_weighted['fit_time']):.3f} s ± {np.std(cv_results_balanced_best_scorer_weighted['fit_time']):.3f}")
+
+
+
+        ###########################################################################
+        ######## Test impact of feature reduction (for ALL datasets)
+        print('#' * 30)
+        print('Test impact of feature reduction')
+
+        pip_reduced = make_pipeline(
+            preprocessing_class_instance,
+            SelectKBest(score_func=f_classif, k=30),
+            KNeighborsClassifier()
+        )
+
+        kf_reduced = KFold(n_splits=5, shuffle=True, random_state=42)
+
+        cv_results_reduced_macro = cross_validate(
+            pip_reduced,
+            X_train,
+            y_train,
+            cv=kf_reduced,
+            scoring=scorer_macro,
+            return_train_score=True,
+            n_jobs=-1)
+
+        cv_results_reduced_weighted = cross_validate(
+            pip_reduced,
+            X_train,
+            y_train,
+            cv=kf_reduced,
+            scoring=scorer_weighted,
+            return_train_score=True,
+            n_jobs=-1)
+
+        for metric in scorer_macro.keys():
+            print(f"Train (macro) {metric}: {np.mean(cv_results_reduced_macro[f'train_{metric}']):.4f} ± {np.std(cv_results_reduced_macro[f'train_{metric}']):.4f}")
+            print(f"Validation (macro) {metric}: {np.mean(cv_results_reduced_macro[f'test_{metric}']):.4f} ± {np.std(cv_results_reduced_macro[f'test_{metric}']):.4f}")
+
+        print(f"Mean fit time (macro): {np.mean(cv_results_reduced_macro['fit_time']):.3f} s ± {np.std(cv_results_reduced_macro['fit_time']):.3f}")
+
+        for metric in scorer_weighted.keys():
+            print(f"Train (weighted) {metric}: {np.mean(cv_results_reduced_weighted[f'train_{metric}']):.4f} ± {np.std(cv_results_reduced_weighted[f'train_{metric}']):.4f}")
+            print(f"Validation (weighted) {metric}: {np.mean(cv_results_reduced_weighted[f'test_{metric}']):.4f} ± {np.std(cv_results_reduced_weighted[f'test_{metric}']):.4f}")
+
+        print(f"Mean fit time (weighted): {np.mean(cv_results_reduced_weighted['fit_time']):.3f} s ± {np.std(cv_results_reduced_weighted['fit_time']):.3f}")
+
+        # Ozone - remove hourly data (special case - same as Logistic Regression)
         if keys == 'Ozone_level':
             cols_to_drop = []
             for i in range(24):
@@ -256,11 +416,14 @@ def run(datasets):
 
             pipeline_red = make_pipeline(preprocessing_class_instance, KNeighborsClassifier())
             y_pred_red, train_time_red = train_dataset(pipeline_red, X_train_red, y_train_red, X_valid_red)
-            metrics_red = evaluate_dataset(y_valid_red, y_pred_red, train_time_red, dataset_name=keys)
+            metrics_red_macro = evaluate_dataset(y_valid_red, y_pred_red, train_time_red, 'macro')
+            metrics_red_weighted = evaluate_dataset(y_valid_red, y_pred_red, train_time_red, 'weighted')
 
             print('Special feature reduction analysis for Ozone dataset')
-            print('Metrics for dataset with feature reduction:')
-            print(metrics_red)
+            print('Metrics for dataset with feature reduction (macro):')
+            print(metrics_red_macro)
+            print('Metrics for dataset with feature reduction (weighted):')
+            print(metrics_red_weighted)
 
 
 if __name__ == '__main__':
