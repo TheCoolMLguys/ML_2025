@@ -8,12 +8,12 @@ from Exercise2.Random_Forest_Our_Implementation import DecisionTree
 class RandomForest:
 
     def __init__(self, n_estimators=100, max_depth=None, min_samples_split=2,
-                 criterion='mse', random_state=None, n_jobs=-1):
+                 loss='mse', random_state=None, n_jobs=-1):
         
         self.n_estimators = n_estimators
         self.max_depth = max_depth
         self.min_samples_split = min_samples_split
-        self.criterion = criterion  # 'mse', 'mae', 'mad'
+        self.loss = loss  # 'mse', 'mae', 'mad'
         self.random_state = random_state
         self.n_jobs = n_jobs
 
@@ -53,7 +53,7 @@ class RandomForest:
             min_criterion=0.01,
             min_sample_split=self.min_samples_split,
             max_features=max_features_val,
-            loss=self.criterion,
+            loss=self.loss,
             random_state=tree_seed
         )
         tree.fit(X_boot, y_boot)
