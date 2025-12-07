@@ -1,5 +1,5 @@
 import pandas as pd
-from ML_Ex2_Preprocessing_all import House_Price_preprocessing, Phone_Addiction_preprocessing
+from ML_Ex2_Preprocessing_all import House_Price_preprocessing, Phone_Addiction_preprocessing, Health_preprocessing
 from sklearn.model_selection import train_test_split, cross_validate, KFold
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.pipeline import make_pipeline
@@ -69,10 +69,13 @@ def run(datasets):
         # Split data into 80-20%
         X_train, y_train, X_valid, y_valid = split_dataset(data[0], data[1], 0.2)
 
+        print("Before preprocessing:", data[0].shape)
+        Xt = preprocessing_class_instance.fit_transform(X_train)
+        print("After preprocessing:", Xt.shape)
+
         #Set up pipeline with preprocessing class and model
         pipeline = make_pipeline(preprocessing_class_instance, GradientBoostingRegressor(random_state=42)) 
  
-        
         # Train model by using pipeline object with holdout method
         y_pred, train_time = train_dataset(pipeline, X_train, y_train, X_valid)
     
@@ -147,13 +150,15 @@ def run(datasets):
 if __name__ == '__main__':
 
 
-    df_houseprice = pd.read_csv("data"+ os.sep + "House_Price_Prediction_Dataset.csv")
-    df_phone_addiction = pd.read_csv("data" + os.sep + "teen_phone_addiction_dataset.csv")
+    df_houseprice = pd.read_csv("Exercise2/data"+ os.sep + "House_Price_Prediction_Dataset.csv")
+    df_phone_addiction = pd.read_csv("Exercise2/data" + os.sep + "teen_phone_addiction_dataset.csv")
+    df_health = pd.read_csv("Exercise2/data" + os.sep + "health_lifestyle_dataset.csv")
 
     # Define the dataset dictionary
 
     datasets = {"House_Price": [df_houseprice, "Price", House_Price_preprocessing],
-                "Phone_Addiction": [df_phone_addiction, "Addiction_Level", Phone_Addiction_preprocessing]}
+                "Phone_Addiction": [df_phone_addiction, "Addiction_Level", Phone_Addiction_preprocessing],
+                "Health": [df_health, "cholesterol", Health_preprocessing]}
 
     run(datasets)
 
