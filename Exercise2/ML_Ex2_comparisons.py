@@ -1,7 +1,8 @@
 import pandas as pd
-from ML_Ex2_Preprocessing_all import House_Price_preprocessing, Phone_Addiction_preprocessing, Health_preprocessing
+from ML_Ex2_Preprocessing_all import House_Price_preprocessing, Phone_Addiction_preprocessing, Health_preprocessing, Ford_preprocessing
 from sklearn.model_selection import train_test_split, cross_validate, KFold
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.metrics import make_scorer, mean_squared_error, mean_absolute_error, r2_score
 import time
@@ -45,9 +46,9 @@ def evaluate_dataset(y_valid, y_pred, train_time):
 def cross_val_metrics():
 
     return {
-        "MSE": make_scorer(lambda y_true, y_pred: mean_squared_error(y_true, y_pred), greater_is_better=False),
-        "RMSE": make_scorer(lambda y_true, y_pred: np.sqrt(mean_squared_error(y_true, y_pred)), greater_is_better=False),
-        "MAE": make_scorer(mean_absolute_error, greater_is_better=False),
+        "MSE": make_scorer(lambda y_true, y_pred: mean_squared_error(y_true, y_pred)),
+        "RMSE": make_scorer(lambda y_true, y_pred: np.sqrt(mean_squared_error(y_true, y_pred))),
+        "MAE": make_scorer(mean_absolute_error),
         "R2": "r2" 
     }
 
@@ -74,7 +75,7 @@ def run(datasets):
         print("After preprocessing:", Xt.shape)
 
         #Set up pipeline with preprocessing class and model
-        pipeline = make_pipeline(preprocessing_class_instance, GradientBoostingRegressor(random_state=42)) 
+        pipeline = make_pipeline(preprocessing_class_instance, LinearRegression()) 
  
         # Train model by using pipeline object with holdout method
         y_pred, train_time = train_dataset(pipeline, X_train, y_train, X_valid)
@@ -153,12 +154,14 @@ if __name__ == '__main__':
     df_houseprice = pd.read_csv("Exercise2/data"+ os.sep + "House_Price_Prediction_Dataset.csv")
     df_phone_addiction = pd.read_csv("Exercise2/data" + os.sep + "teen_phone_addiction_dataset.csv")
     df_health = pd.read_csv("Exercise2/data" + os.sep + "health_lifestyle_dataset.csv")
+    df_ford = pd.read_csv("Exercise2/data" + os.sep + "ford.csv")
 
     # Define the dataset dictionary
 
     datasets = {"House_Price": [df_houseprice, "Price", House_Price_preprocessing],
                 "Phone_Addiction": [df_phone_addiction, "Addiction_Level", Phone_Addiction_preprocessing],
-                "Health": [df_health, "cholesterol", Health_preprocessing]}
+                #"Health": [df_health, "cholesterol", Health_preprocessing],
+                "Ford": [df_ford, "price", Ford_preprocessing]}
 
     run(datasets)
 
