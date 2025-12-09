@@ -9,9 +9,9 @@ from ML_Ex2_Preprocessing_all import Phone_Addiction_preprocessing
 from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score, root_mean_squared_error
 import pickle
-from sklearn.model_selection import cross_val_score, KFold
+from sklearn.model_selection import cross_val_score, KFold, ParameterGrid
 from sklearn.pipeline import make_pipeline
 
 
@@ -20,8 +20,8 @@ from sklearn.pipeline import make_pipeline
 class DecisionTree(BaseEstimator):
 
 
-    def __init__(self, max_depth=4, min_criterion=0.05, min_sample_split=2, max_features=None, loss="mse", random_state=None):
-        self.max_depth = max_depth
+    def __init__(self, max_depth=None, min_criterion=0.0, min_sample_split=2, max_features=None, loss="mse", random_state=None):
+        self.max_depth = np.nan if max_depth is None else max_depth
         self.min_criterion = min_criterion
         self.min_sample_split = min_sample_split
         self.max_features = max_features
@@ -81,7 +81,7 @@ class DecisionTree(BaseEstimator):
         self.feature_ = current_feature
         self.threshold_ = current_thresh
         self.gain_ = current_gain
-
+   
         if (depth >= self.max_depth or self.n_samples_ < self.min_sample_split or self.feature_ is None or self.gain_ < self.min_criterion):
             # Then we have reached a leaf node
             self.feature_ = None
@@ -191,12 +191,13 @@ class RandomForest(BaseEstimator):
         self.rng = np.random.default_rng(random_state)
         self.trees = []
     
-    def _bootstrap_sample(self, X, y):
+    def _bootstrap_sample(self, X, y, tree_seed):
         if X.shape[0] != y.shape[0]:
             raise ValueError("X and y must have same number of samples")
         
         n_samples = X.shape[0]
-        indices = self.rng.integers(0, n_samples, size=n_samples)
+        indices = tree_seed.integers(0, n_samples, size=n_samples)
+        #indices = self.rng.integers(0, n_samples, size=n_samples)
         
         if isinstance(X, pd.DataFrame):
             return X.iloc[indices], y.iloc[indices]
@@ -214,8 +215,8 @@ class RandomForest(BaseEstimator):
         return self
 
     def _build_tree(self, X, y, tree_idx):
-        tree_seed = self.rng.integers(0, 1e9)# + tree_idx
-        X_boot, y_boot = self._bootstrap_sample(X, y)
+        tree_seed = np.random.default_rng(self.random_state + tree_idx)#self.rng.integers(0, 1e9) + tree_idx
+        X_boot, y_boot = self._bootstrap_sample(X, y, tree_seed)
 
         max_features_val = X_boot.shape[1]  #int(np.sqrt(X_boot.shape[1]))
         
@@ -247,11 +248,190 @@ class RandomForest(BaseEstimator):
 
 
 
+##########################################################################
+########################## Functions Definition ##########################
+##########################################################################
+
+# Hyperparameters to tune
+
+hyperparameters = {'n_estimators': [150, 100, 50], 
+                   'max_depth': [50, 30, 10],
+                   'min_samples_split': [15, 5, 2]}
+
+
+def train_model(X_transformed):
+
+
+   X_train, X_test, y_train, y_test = train_test_split(X_transformed, y, test_size=0.2, random_state=42)
+
+   ###############################
+   # Hold-out method for reference
+
+   rf = RandomForest(n_estimators=100, max_depth=None, min_samples_split=2, random_state=42)
+   start = time.time()
+   rf.fit(X_train, y_train)
+   total_time = time.time() - start
+   print(f"Random Forest with Holdout - Total training time: {total_time}")
+
+   predictions = rf.predict(X_test)
+   mse_holdout = mean_squared_error(y_test, predictions)
+   print(f"Random Forest with Holdout - MSE: {mse_holdout}")
+
+   mae_holdout = mean_absolute_error(y_test, predictions)
+   print(f"Random Forest with Holdout - MAE: {mae_holdout}")
+
+   r2_holdout = r2_score(y_test, predictions)
+   print(f"Random Forest with Holdout - R2: {r2_holdout}")
+
+   rmse_holdout = root_mean_squared_error(y_test, predictions)
+   print(f"Random Forest with Holdout - RMSE: {rmse_holdout}")
+
+   ##########################################################
+
+
+   # Cross-Validation - Our Model ########################
+
+   kf = KFold(n_splits=5, shuffle=True, random_state=42)
+
+   rf_cv = RandomForest(n_estimators=100, max_depth=None, min_samples_split=2, random_state=42)
+
+   #CV with MSE
+   start = time.time()
+   cv_score_mse = cross_val_score(rf_cv, X_train, y_train, cv=kf, scoring='neg_mean_squared_error', n_jobs=-1)
+   total_time = time.time() - start
+
+   print(f" CV with our RF model - Mean MSE: {-cv_score_mse.mean():.2f}, Std Dev: {cv_score_mse.std():.2f}, Total time: {total_time:.2f}")
+
+   #CV with MAE
+   start = time.time()
+   cv_score_mae = cross_val_score(rf_cv, X_train, y_train, cv=kf, scoring='neg_median_absolute_error', n_jobs=-1)
+   total_time = time.time() - start
+
+   print(f"CV with our RF model - Mean MAE: {-cv_score_mae.mean():.2f}, Std Dev: {cv_score_mae.std():.2f}, Total time: {total_time:.2f}")
+
+   #CV with R2
+   start = time.time()
+   cv_score_r2 = cross_val_score(rf_cv, X_train, y_train, cv=kf, scoring='r2', n_jobs=-1)
+   total_time = time.time() - start
+
+   print(f"CV with our RF model - Mean R2: {cv_score_r2.mean():.2f}, Std Dev: {cv_score_r2.std():.2f}, Total time: {total_time:.2f}")
+
+   #CV with RMSE
+   start = time.time()
+   cv_score_rmse = cross_val_score(rf_cv, X_train, y_train, cv=kf, scoring='neg_root_mean_squared_error', n_jobs=-1)
+   total_time = time.time() - start
+
+   print(f"CV with our RF model - Mean RMSE: {-cv_score_rmse.mean():.2f}, Std Dev: {cv_score_rmse.std():.2f}, Total time: {total_time:.2f}")
+
+  # if you want to load the tree instance from the pickle file 
+  # f = open(filename, 'rb')
+  # tree = pickle.load(f)
+  # f.close()
+
+  ###########################################################
+  ###########################################################   
+  # Cross-Validation - Sklearn Model ########################
+
+   rf_sklearn = RandomForestRegressor(n_estimators=100, max_depth=None, min_samples_split=2, random_state=42)
+
+   start = time.time()
+   rf_sklearn.fit(X_train, y_train)
+   total_time = time.time() - start
+   print(f"Sklearn Random Forest with Holdout - Total training time: {total_time}")
+
+   predictions_sklearn = rf_sklearn.predict(X_test)
+   mse_holdout_sk = mean_squared_error(y_test, predictions_sklearn)
+   print(f"Sklearn Random Forest with Holdout - MSE: {mse_holdout_sk}")
+
+   mae_holdout_sk = mean_absolute_error(y_test, predictions_sklearn)
+   print(f"Sklearn Random Forest with Holdout - MAE: {mae_holdout_sk}")
+
+   r2_holdout_sk = r2_score(y_test, predictions_sklearn)
+   print(f"Sklearn Random Forest with Holdout - R2: {r2_holdout_sk}")
+
+   rmse_holdout_sk = root_mean_squared_error(y_test, predictions_sklearn)
+   print(f"Sklearn Random Forest with Holdout - RMSE: {rmse_holdout_sk}")
+
+
+
+   kf2 = KFold(n_splits=5, shuffle=True, random_state=42)
+
+   rf_sklearn_cv = RandomForestRegressor(n_estimators=100, max_depth=None, min_samples_split=2, random_state=42)
+
+   #CV with MSE
+   start = time.time()
+   cv_sklearn_mse = cross_val_score(rf_sklearn_cv, X_train, y_train, cv=kf2, scoring='neg_mean_squared_error', n_jobs=-1)
+   total_time = time.time() - start
+
+   print(f" CV with sklearn RF model - Mean MSE: {-cv_sklearn_mse.mean():.2f}, Std Dev: {cv_sklearn_mse.std():.2f}, Total time: {total_time:.2f}")
+
+   #CV with MAE
+   start = time.time()
+   cv_sklearn_mae = cross_val_score(rf_sklearn_cv, X_train, y_train, cv=kf2, scoring='neg_median_absolute_error', n_jobs=-1)
+   total_time = time.time() - start
+
+   print(f"CV with sklearn RF model - Mean MAE: {-cv_sklearn_mae.mean():.2f}, Std Dev: {cv_sklearn_mae.std():.2f}, Total time: {total_time:.2f}")
+
+   #CV with R2
+   start = time.time()
+   cv_sklearn_r2 = cross_val_score(rf_sklearn_cv, X_train, y_train, cv=kf2, scoring='r2', n_jobs=-1)
+   total_time = time.time() - start
+
+   print(f"CV with sklearn RF model - Mean R2: {cv_sklearn_r2.mean():.2f}, Std Dev: {cv_sklearn_r2.std():.2f}, Total time: {total_time:.2f}")
+
+   #CV with RMSE
+   start = time.time()
+   cv_sklearn_rmse = cross_val_score(rf_sklearn_cv, X_train, y_train, cv=kf2, scoring='neg_root_mean_squared_error', n_jobs=-1)
+   total_time = time.time() - start
+
+   print(f"CV with sklearn RF model - Mean RMSE: {-cv_sklearn_rmse.mean():.2f}, Std Dev: {cv_sklearn_rmse.std():.2f}, Total time: {total_time:.2f}")
+  
+
+def hyperparameter_mapping():
+
+
+   hyperparameters = {'n_estimators': [150, 80, 50], 
+                   'max_depth': [50, 30, 20],
+                   'min_samples_split': [15, 10, 5]}
+
+   default_params = {'n_estimators': 100, 'max_depth': None, 'min_samples_split': 2}
+
+
+   kf = KFold(n_splits=5, shuffle=True, random_state=42) # to delete
+
+   parameter_combinations = []
+
+   for key, values in hyperparameters.items():
+      grid = ParameterGrid({key: values})
+      for g in grid:
+          temp = default_params.copy()
+          temp.update(g)
+          parameter_combinations.append(temp)
+
+   print("Starting hyperparameter tuning...\n")
+
+   for params in parameter_combinations:
+
+     print(f"Testing parameters: {params}")
+
+     # Create and configure the RandomForest model
+     model = RandomForest(**params, random_state=42)
+
+     start_time = time.time()
+     cv_tuning = cross_val_score(model, X_train, y_train, cv=kf, scoring='neg_mean_squared_error', n_jobs=-1)
+     total_time = time.time() - start_time
+     print(f" CV with tuning - Mean MSE: {-cv_tuning.mean():.2f}, Std Dev: {cv_tuning.std():.2f}, Total time: {total_time:.2f}")  
+
+
+
+
 #############################################################
 ########################## TESTING ##########################
 #############################################################
 
-df = pd.read_csv('teen_phone_addiction_dataset.csv', sep=",")
+
+######## Teen Phone Addiction
+df = pd.read_csv('data/teen_phone_addiction_dataset.csv', sep=",")
 
 y = df['Addiction_Level']
 X = df.drop(columns=['Addiction_Level'])
@@ -261,26 +441,8 @@ preprocess= Phone_Addiction_preprocessing()
 
 X_transformed = preprocess.fit(X).transform(X)
 
-X_train, X_test, y_train, y_test = train_test_split(X_transformed, y, test_size=0.2, random_state=42)
+print('########################')
+print('Training the Random Forest model on Phone Addiction dataset')
+train_model(X_transformed)
 
-
-kf = KFold(n_splits=5, shuffle=True, random_state=42)
-
-# Perform cross-validation
-
-
-tree = RandomForest(n_estimators=50, max_depth=30, min_samples_split=30, random_state=42)
-scores = cross_val_score(tree, X_train, y_train, cv=kf, scoring='neg_mean_squared_error')
-print(f"Mean MSE: {-scores.mean():.2f}, Std Dev: {scores.std():.2f}")
-
-#
-# if you want to load the tree instance from the pickle file 
-# f = open(filename, 'rb')
-# tree = pickle.load(f)
-# f.close()
-
-
-sklearn_tree = RandomForestRegressor(n_estimators=50, max_depth=30, min_samples_split=30, random_state=42)
-
-scores_sk = cross_val_score(sklearn_tree, X_train, y_train, cv=kf, scoring='neg_mean_squared_error')
-print(f"Mean MSE: {-scores_sk.mean():.2f}, Std Dev: {scores_sk.std():.2f}")
+hyperparameter_mapping()
