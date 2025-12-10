@@ -254,9 +254,42 @@ class RandomForest(BaseEstimator):
 
 # Hyperparameters to tune
 
-hyperparameters = {'n_estimators': [150, 100, 50], 
-                   'max_depth': [50, 30, 10],
-                   'min_samples_split': [15, 5, 2]}
+
+def hyperparameter_mapping(Xtrain, y_train):
+
+
+   hyperparameters = {'n_estimators': [150, 80, 50], 
+                   'max_depth': [50, 30, 20],
+                   'min_samples_split': [15, 10, 5]}
+
+   default_params = {'n_estimators': 100, 'max_depth': None, 'min_samples_split': 2}
+
+
+   kf = KFold(n_splits=5, shuffle=True, random_state=42) # to delete
+
+   parameter_combinations = []
+
+   for key, values in hyperparameters.items():
+      grid = ParameterGrid({key: values})
+      for g in grid:
+          temp = default_params.copy()
+          temp.update(g)
+          parameter_combinations.append(temp)
+
+   print("Starting hyperparameter tuning...\n")
+
+   for params in parameter_combinations:
+
+     print(f"Testing parameters: {params}")
+
+     # Create and configure the RandomForest model
+     model = RandomForest(**params, random_state=42)
+
+     start_time = time.time()
+     cv_tuning = cross_val_score(model, X_train, y_train, cv=kf, scoring='neg_mean_squared_error', n_jobs=-1)
+     total_time = time.time() - start_time
+     print(f" CV with tuning - Mean MSE: {-cv_tuning.mean():.2f}, Std Dev: {cv_tuning.std():.2f}, Total time: {total_time:.2f}")  
+
 
 
 def train_model(X_transformed):
@@ -385,42 +418,9 @@ def train_model(X_transformed):
    total_time = time.time() - start
 
    print(f"CV with sklearn RF model - Mean RMSE: {-cv_sklearn_rmse.mean():.2f}, Std Dev: {cv_sklearn_rmse.std():.2f}, Total time: {total_time:.2f}")
+
+   hyperparameter_mapping(Xtrain, y_train)
   
-
-def hyperparameter_mapping():
-
-
-   hyperparameters = {'n_estimators': [150, 80, 50], 
-                   'max_depth': [50, 30, 20],
-                   'min_samples_split': [15, 10, 5]}
-
-   default_params = {'n_estimators': 100, 'max_depth': None, 'min_samples_split': 2}
-
-
-   kf = KFold(n_splits=5, shuffle=True, random_state=42) # to delete
-
-   parameter_combinations = []
-
-   for key, values in hyperparameters.items():
-      grid = ParameterGrid({key: values})
-      for g in grid:
-          temp = default_params.copy()
-          temp.update(g)
-          parameter_combinations.append(temp)
-
-   print("Starting hyperparameter tuning...\n")
-
-   for params in parameter_combinations:
-
-     print(f"Testing parameters: {params}")
-
-     # Create and configure the RandomForest model
-     model = RandomForest(**params, random_state=42)
-
-     start_time = time.time()
-     cv_tuning = cross_val_score(model, X_train, y_train, cv=kf, scoring='neg_mean_squared_error', n_jobs=-1)
-     total_time = time.time() - start_time
-     print(f" CV with tuning - Mean MSE: {-cv_tuning.mean():.2f}, Std Dev: {cv_tuning.std():.2f}, Total time: {total_time:.2f}")  
 
 
 
@@ -445,4 +445,3 @@ print('########################')
 print('Training the Random Forest model on Phone Addiction dataset')
 train_model(X_transformed)
 
-hyperparameter_mapping()
