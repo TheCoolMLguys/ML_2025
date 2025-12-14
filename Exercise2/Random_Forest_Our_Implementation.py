@@ -5,7 +5,7 @@ from collections import Counter
 from sklearn.base import BaseEstimator, TransformerMixin
 from joblib import Parallel, delayed
 import time
-from ML_Ex2_Preprocessing_all import Phone_Addiction_preprocessing
+from ML_Ex2_Preprocessing_all import Ford_preprocessing, House_Price_preprocessing, Phone_Addiction_preprocessing
 from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestRegressor
@@ -437,11 +437,45 @@ y = df['Addiction_Level']
 X = df.drop(columns=['Addiction_Level'])
 
 
-preprocess= Phone_Addiction_preprocessing()
+preprocess_phone= Phone_Addiction_preprocessing()
 
-X_transformed = preprocess.fit(X).transform(X)
+X_transformed = preprocess_phone.fit(X).transform(X)
 
 print('########################')
 print('Training the Random Forest model on Phone Addiction dataset')
+train_model(X_transformed)
+
+
+######## House Price #########
+
+df = pd.read_csv('data/House_Price_Prediction_Dataset.csv', sep=",")
+
+y = df['Price']
+X = df.drop(columns=['Price'])
+
+
+preprocess_house= House_Price_preprocessing()
+
+X_transformed = preprocess_house.fit(X).transform(X)
+
+print('########################')
+print('Training the Random Forest model on House price dataset')
+train_model(X_transformed)
+
+
+
+###### Ford price prediction ###########
+
+df = pd.read_csv('data/ford.csv', sep=",")
+
+y = df['price']
+X = df.drop(columns=['price'])
+
+preprocess_ford= Ford_preprocessing()
+
+X_transformed = preprocess_ford.fit(X).transform(X)
+
+print('########################')
+print('Training the Random Forest model on Ford dataset')
 train_model(X_transformed)
 
