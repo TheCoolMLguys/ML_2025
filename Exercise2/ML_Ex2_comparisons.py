@@ -6,8 +6,28 @@ from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import make_pipeline
 from sklearn.metrics import make_scorer, mean_squared_error, mean_absolute_error, r2_score
 import time
+import matplotlib.pyplot as plt
 import os
 import numpy as np
+
+def plot_target_classes(datasets, bins = 30):
+    
+    for keys, data in datasets.items():
+        df = data[0]
+        target_column = data[1]
+        
+        plt.figure(figsize=(10, 6))
+
+        plt.hist(df[target_column].dropna(), bins=bins, edgecolor="black")
+
+        plt.xlabel(target_column, fontsize=12)
+        plt.ylabel("Frequency", fontsize=12)
+        plt.title(f"Target of {keys}", fontsize=14)
+
+        plt.grid(axis="y", alpha=0.3)
+
+        plt.tight_layout()
+        plt.show()
 
 def split_dataset(df, target_column, test_set_size):
 
@@ -52,102 +72,92 @@ def cross_val_metrics():
         "R2": "r2" 
     }
 
+def run_model(modelname, model, X_train, y_train, X_valid, y_valid, scorer, kf, keys):
+
+        print("#"*50)
+        print(modelname)
+        print("#"*50)
+
+        print("#"*30)
+        print(f"HOLD OUT on {keys}")
+        print("#"*30)
+
+        # Train model by using pipeline object with holdout method
+        y_pred, train_time = train_dataset(model, X_train, y_train, X_valid)
+    
+        #Evaluate performance
+        metrics = evaluate_dataset(y_valid, y_pred, train_time)
+
+        print({k: round(v, 3) for k, v in metrics.items()})
+
+        print("#"*30)
+        print(f"CROSS VALIDATION on {keys}")
+        print("#"*30)
+
+        # Run cross-validation
+        cv_results = cross_validate(
+            model,
+            X_train,
+            y_train,
+            cv=kf,
+            scoring=scorer,
+            return_train_score=True,
+            n_jobs=-1)
+        
+        for metric in scorer.keys():
+           print(f"Train {metric}: {np.mean(cv_results[f'train_{metric}']):.3f} ± {np.std(cv_results[f'train_{metric}']):.3f}")
+           print(f"Validation {metric}: {np.mean(cv_results[f'test_{metric}']):.3f} ± {np.std(cv_results[f'test_{metric}']):.3f}")
+        
+        print(f"Mean fit time: {np.mean(cv_results['fit_time']):.3f} s ± {np.std(cv_results['fit_time']):.3f}")
+        # change to total run time & check if they are approx 5 times fold time
+        # still need to do this?
+
 def run(datasets):
 
     for keys, data in datasets.items():
 
-        global preprocessing_class_instance
-        preprocessing_class_instance = data[2]()
-
-        print("#"*50)
-        print(f"Gradient Boosting Regressor")
-        print("#"*50)
-
         print("#"*30)
-        print(f"HOLD OUT on {keys}")
+        print(f"PROCESSING {keys}")
         print("#"*30)
+
+        X, y = data[0], data[1]
+        preprocessing = data[2]()
+
+        print("Before preprocessing:", X.shape)
+        X_proc = preprocessing.fit_transform(X)
+        print("After preprocessing:", X_proc.shape)
 
         # Split data into 80-20%
-        X_train, y_train, X_valid, y_valid = split_dataset(data[0], data[1], 0.2)
-
-        print("Before preprocessing:", data[0].shape)
-        Xt = preprocessing_class_instance.fit_transform(X_train)
-        print("After preprocessing:", Xt.shape)
-
-        #Set up pipeline with preprocessing class and model
-        pipeline = make_pipeline(preprocessing_class_instance, LinearRegression()) 
- 
-        # Train model by using pipeline object with holdout method
-        y_pred, train_time = train_dataset(pipeline, X_train, y_train, X_valid)
-    
-        #Evaluate performance
-        metrics = evaluate_dataset(y_valid, y_pred, train_time)
-    
-        print({k: round(v, 3) for k, v in metrics.items()})
-
-        print("#"*30)
-        print(f"CROSS VALIDATION on {keys}")
-        print("#"*30)
+        X_train, y_train, X_valid, y_valid = split_dataset(X_proc, y, 0.2)
 
         kf = KFold(n_splits=5, shuffle=True, random_state=42)
 
-        scorer = cross_val_metrics() 
+        scorer = cross_val_metrics()
+    
+        run_model(
+            modelname="Gradient Boosting Regressor",
+            model=GradientBoostingRegressor(random_state=42),
+            X_train=X_train,
+            y_train=y_train,
+            X_valid=X_valid,
+            y_valid=y_valid,
+            scorer=scorer,
+            kf=kf,
+            keys=keys
+        )
 
-        # Run cross-validation
-        cv_results = cross_validate(
-            pipeline,
-            X_train,
-            y_train,
-            cv=kf,
-            scoring=scorer,
-            return_train_score=True,
-            n_jobs=-1)
-        
-        for metric in scorer.keys():
-           print(f"Train {metric}: {np.mean(cv_results[f'train_{metric}']):.4f} ± {np.std(cv_results[f'train_{metric}']):.4f}")
-           print(f"Validation {metric}: {np.mean(cv_results[f'test_{metric}']):.4f} ± {np.std(cv_results[f'test_{metric}']):.4f}")
-        
-        print(f"Mean fit time: {np.mean(cv_results['fit_time']):.3f} s ± {np.std(cv_results['fit_time']):.3f}")
-
-
-        print("#"*50)
-        print(f"Sklearn RF Regression")
-        print("#"*50)
-
-        print("#"*30)
-        print(f"HOLD OUT on {keys}")
-        print("#"*30)
-
-        pipeline = make_pipeline(preprocessing_class_instance, RandomForestRegressor(max_depth=10, random_state=42))
-        
-        # Train model by using pipeline object with holdout method
-        y_pred, train_time = train_dataset(pipeline, X_train, y_train, X_valid)
-        
-        #Evaluate performance
-        metrics = evaluate_dataset(y_valid, y_pred, train_time)
-
-        print({k: round(v, 3) for k, v in metrics.items()})
-        
-        print("#"*30)
-        print(f"CROSS VALIDATION on {keys}")
-        print("#"*30)
-
-        # Run cross-validation
-        cv_results = cross_validate(
-            pipeline,
-            X_train,
-            y_train,
-            cv=kf,
-            scoring=scorer,
-            return_train_score=True,
-            n_jobs=-1)
-        
-        for metric in scorer.keys():
-           print(f"Train {metric}: {np.mean(cv_results[f'train_{metric}']):.4f} ± {np.std(cv_results[f'train_{metric}']):.4f}")
-           print(f"Validation {metric}: {np.mean(cv_results[f'test_{metric}']):.4f} ± {np.std(cv_results[f'test_{metric}']):.4f}")
-        
-        print(f"Mean fit time: {np.mean(cv_results['fit_time']):.3f} s ± {np.std(cv_results['fit_time']):.3f}")
-
+        run_model(
+            modelname="Sklearn Random Forest",
+            model=RandomForestRegressor(random_state=42),
+            X_train=X_train,
+            y_train=y_train,
+            X_valid=X_valid,
+            y_valid=y_valid,
+            scorer=scorer,
+            kf=kf,
+            keys=keys
+        )
+    
 if __name__ == '__main__':
 
 
@@ -160,8 +170,9 @@ if __name__ == '__main__':
 
     datasets = {"House_Price": [df_houseprice, "Price", House_Price_preprocessing],
                 "Phone_Addiction": [df_phone_addiction, "Addiction_Level", Phone_Addiction_preprocessing],
-                #"Health": [df_health, "cholesterol", Health_preprocessing],
+                "Health": [df_health, "cholesterol", Health_preprocessing],
                 "Ford": [df_ford, "price", Ford_preprocessing]}
-
+    
+    plot_target_classes(datasets, bins = 30)
     run(datasets)
 
