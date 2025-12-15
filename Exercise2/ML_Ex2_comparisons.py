@@ -170,7 +170,6 @@ if __name__ == '__main__':
 
     datasets = {"House_Price": [df_houseprice, "Price", House_Price_preprocessing],
                 "Phone_Addiction": [df_phone_addiction, "Addiction_Level", Phone_Addiction_preprocessing],
-                "Health": [df_health, "cholesterol", Health_preprocessing],
                 "Ford": [df_ford, "price", Ford_preprocessing]}
     
     plot_target_classes(datasets, bins = 30)

@@ -48,19 +48,12 @@ class House_Price_preprocessing(BaseEstimator, TransformerMixin):
         # transform
         self.simple_preprocess(X)
 
-        # scaling
-        #numeric_columns = X_transformed.select_dtypes(include="number").columns
-        #self.scaler.fit(X_transformed[numeric_columns])
-
         return self
 
 
     def transform(self, X, Y=None):
 
         X_transformed = self.simple_preprocess(X)
-
-        #numeric_columns = X_transformed.select_dtypes(include="number").columns
-        #X_transformed[numeric_columns] = self.scaler.transform(X_transformed[numeric_columns])
 
         if Y is not None:
             return X_transformed, Y
@@ -102,70 +95,12 @@ class Phone_Addiction_preprocessing(BaseEstimator, TransformerMixin):
         # transform
         self.simple_preprocess(X)
 
-        # scaling
-        #numeric_columns = X_transformed.select_dtypes(include="number").columns
-        #self.scaler.fit(X_transformed[numeric_columns])
-
         return self
 
 
     def transform(self, X, Y=None):
 
         X_transformed = self.simple_preprocess(X)
-
-        #numeric_columns = X_transformed.select_dtypes(include="number").columns
-        #X_transformed[numeric_columns] = self.scaler.transform(X_transformed[numeric_columns])
-
-        if Y is not None:
-            return X_transformed, Y
-
-        return X_transformed
-    
-class Health_preprocessing(BaseEstimator, TransformerMixin):
-
-    def __init__(self):
-          
-        self.scaler = StandardScaler() 
-        self.onehot = None
-        self.onehot_vars = None
-    
-    def simple_preprocess(self, X):
-        
-        # drop identifiers
-        X = X.drop(columns=["id"], errors="ignore").copy()
-        
-        # One Hot encoding 
-        onehot_encoded = self.onehot.transform(X[self.onehot_vars])
-        onehot_cols = self.onehot.get_feature_names_out(self.onehot_vars)
-        onehot_df = pd.DataFrame(onehot_encoded, columns=onehot_cols, index=X.index)
-
-        X = X.drop(columns=self.onehot_vars)
-        X = pd.concat([X, onehot_df], axis=1)
-
-        return X 
-
-    def fit(self, X, Y=None):
-
-        self.onehot_vars = ["gender"]
-        self.onehot = OneHotEncoder(drop="if_binary", sparse_output=False)
-        self.onehot.fit(X[self.onehot_vars])
-
-        # transform
-        self.simple_preprocess(X)
-
-        # scaling
-        #numeric_columns = X_transformed.select_dtypes(include="number").columns
-        #self.scaler.fit(X_transformed[numeric_columns])
-
-        return self
-
-
-    def transform(self, X, Y=None):
-
-        X_transformed = self.simple_preprocess(X)
-
-        #numeric_columns = X_transformed.select_dtypes(include="number").columns
-        #X_transformed[numeric_columns] = self.scaler.transform(X_transformed[numeric_columns])
 
         if Y is not None:
             return X_transformed, Y
@@ -202,19 +137,12 @@ class Ford_preprocessing(BaseEstimator, TransformerMixin):
         # transform
         self.simple_preprocess(X)
 
-        # scaling
-        #numeric_columns = X_transformed.select_dtypes(include="number").columns
-        #self.scaler.fit(X_transformed[numeric_columns])
-
         return self
 
 
     def transform(self, X, Y=None):
 
         X_transformed = self.simple_preprocess(X)
-
-        #numeric_columns = X_transformed.select_dtypes(include="number").columns
-        #X_transformed[numeric_columns] = self.scaler.transform(X_transformed[numeric_columns])
 
         if Y is not None:
             return X_transformed, Y
