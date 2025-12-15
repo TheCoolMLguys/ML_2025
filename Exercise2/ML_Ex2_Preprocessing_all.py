@@ -1,14 +1,11 @@
 import pandas as pd 
-import os
-from sklearn.preprocessing import StandardScaler, OrdinalEncoder, OneHotEncoder
+from sklearn.preprocessing import OrdinalEncoder, OneHotEncoder
 from sklearn.base import BaseEstimator, TransformerMixin
-import numpy as np
 
 class House_Price_preprocessing(BaseEstimator, TransformerMixin):
     
     def __init__(self):
           
-        self.scaler = StandardScaler() 
         self.oe = None
         self.onehot = None
         self.onehot_vars = None
@@ -64,7 +61,6 @@ class Phone_Addiction_preprocessing(BaseEstimator, TransformerMixin):
 
     def __init__(self):
           
-        self.scaler = StandardScaler() 
         self.oe = None
         self.onehot = None
         self.onehot_vars = None
@@ -112,7 +108,6 @@ class Ford_preprocessing(BaseEstimator, TransformerMixin):
 
     def __init__(self):
           
-        self.scaler = StandardScaler() 
         self.onehot = None
         self.onehot_vars = None
     

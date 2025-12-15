@@ -1,9 +1,7 @@
 import pandas as pd
-from ML_Ex2_Preprocessing_all import House_Price_preprocessing, Phone_Addiction_preprocessing, Health_preprocessing, Ford_preprocessing
+from ML_Ex2_Preprocessing_all import House_Price_preprocessing, Phone_Addiction_preprocessing, Ford_preprocessing
 from sklearn.model_selection import train_test_split, cross_validate, KFold
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
-from sklearn.linear_model import LinearRegression
-from sklearn.pipeline import make_pipeline
 from sklearn.metrics import make_scorer, mean_squared_error, mean_absolute_error, r2_score
 import time
 import matplotlib.pyplot as plt
