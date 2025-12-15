@@ -197,7 +197,6 @@ class RandomForest(BaseEstimator):
         
         n_samples = X.shape[0]
         indices = tree_seed.integers(0, n_samples, size=n_samples)
-        #indices = self.rng.integers(0, n_samples, size=n_samples)
         
         if isinstance(X, pd.DataFrame):
             return X.iloc[indices], y.iloc[indices]
@@ -356,10 +355,6 @@ def train_model(X_transformed):
 
    print(f"CV with our RF model - Mean RMSE: {-cv_score_rmse.mean():.2f}, Std Dev: {cv_score_rmse.std():.2f}, Total time: {total_time:.2f}")
 
-  # if you want to load the tree instance from the pickle file 
-  # f = open(filename, 'rb')
-  # tree = pickle.load(f)
-  # f.close()
 
   ###########################################################
   ###########################################################   
