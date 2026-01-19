@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.preprocessing import StandardScaler,
 import modules.nodeCluster as CL
 import modules.catGenHierarchy as CGH
 import modules.rangeGenHierarchy as RGH
