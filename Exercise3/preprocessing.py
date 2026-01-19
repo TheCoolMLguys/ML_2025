@@ -126,3 +126,137 @@ class SaNGreeATransformer(BaseEstimator, TransformerMixin):
 
 
 ''' Data preprocessing - Class definition  '''
+
+
+
+class Personality_type_preprocessing(BaseEstimator, TransformerMixin):
+
+ # BaseEstimator and TransformerMixin for creating a custom transformer class
+
+  def __init__(self):
+
+    self.scaler = StandardScaler() 
+
+   
+  def impute_data(self, X, Y=None):
+
+     categorical_columns = ['Gender', 'Interest']
+
+     X_encoded = pd.get_dummies(X, columns=categorical_columns, dtype='int')
+    
+     return X_encoded, Y
+
+  
+  
+  def fit(self, X, Y=None):
+        # Fit the scaler only on training X
+        X_transformed, Y = self.impute_data(X, Y)
+
+        numeric_colums = X_transformed.select_dtypes(include='number').columns
+        self.scaler.fit(X_transformed[numeric_colums])
+        return self
+
+
+  def transform(self, X, Y=None):
+
+        X_transformed, Y = self.impute_data(X, Y)
+        numeric_colums = X_transformed.select_dtypes(include='number').columns
+
+        X_transformed[numeric_colums] = self.scaler.transform(X_transformed[numeric_colums])
+
+        if Y is not None:
+            return X_transformed, Y
+
+        return X_transformed
+
+
+class Phone_Addiction_preprocessing(BaseEstimator, TransformerMixin):
+
+
+    def __init__(self):
+          
+        self.oe = None
+        self.onehot = None
+        self.onehot_vars = None
+
+    
+    def simple_preprocess(self, X):
+        
+        # drop identifiers
+        X = X.drop(columns=["ID", "Name", "Location"], errors="ignore").copy()
+        # make school grade numeric
+        X['School_Grade'] = X['School_Grade'].str.extract(r"(\d+)").astype(int)
+
+        # One Hot encoding 
+        onehot_encoded = self.onehot.transform(X[self.onehot_vars])
+        onehot_cols = self.onehot.get_feature_names_out(self.onehot_vars)
+        onehot_df = pd.DataFrame(onehot_encoded, columns=onehot_cols, index=X.index)
+
+        X = X.drop(columns=self.onehot_vars)
+        X = pd.concat([X, onehot_df], axis=1)
+
+        return X 
+
+    def fit(self, X, Y=None):
+
+        self.onehot_vars = [c for c in X.select_dtypes(include="object").columns if c not in  ["ID", "Name", "Location", "School_Grade"]]
+        self.onehot = OneHotEncoder(drop="if_binary", sparse_output=False)
+        self.onehot.fit(X[self.onehot_vars])
+
+        # transform
+        self.simple_preprocess(X)
+
+        return self
+
+
+    def transform(self, X, Y=None):
+
+        X_transformed = self.simple_preprocess(X)
+
+        if Y is not None:
+            return X_transformed, Y
+
+        return X_transformed
+
+
+
+class Student_placement_preprocessing(BaseEstimator, TransformerMixin):
+
+
+    def __init__(self):
+
+      self.scaler = StandardScaler() 
+
+   
+    def impute_data(self, X, Y=None):
+
+      X = X.drop(columns=["Student_ID",], errors="ignore").copy()
+      categorical_columns = ['Gender', 'Degree', 'Branch']
+
+      X_encoded = pd.get_dummies(X, columns=categorical_columns, dtype='int')
+    
+      return X_encoded, Y
+
+  
+  
+    def fit(self, X, Y=None):
+       
+        # Fit the scaler only on training X
+      X_transformed, Y = self.impute_data(X, Y)
+
+      numeric_colums = X_transformed.select_dtypes(include='number').columns
+      self.scaler.fit(X_transformed[numeric_colums])
+      return self
+
+
+  def transform(self, X, Y=None):
+
+      X_transformed, Y = self.impute_data(X, Y)
+      numeric_colums = X_transformed.select_dtypes(include='number').columns
+
+      X_transformed[numeric_colums] = self.scaler.transform(X_transformed[numeric_colums])
+
+      if Y is not None:
+            return X_transformed, Y
+
+      return X_transformed
