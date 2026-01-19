@@ -123,6 +123,128 @@ class SaNGreeATransformer(BaseEstimator, TransformerMixin):
         for cluster in clusters:
             rows.extend(cluster.getAllAnonymizedNodes())
         return pd.DataFrame(rows)
+    
+class SaNGreeATransformer_microaggregation(BaseEstimator, TransformerMixin):
+       
+    "Local k-anonymization using the SaNGreeA algorithm."
+
+    def __init__(self, k, gen_hierarchies=None, adj_list=None):
+        self.k = k
+        self.gen_hierarchies = gen_hierarchies # json file input
+        self.adj_list = adj_list
+
+        self.clusters_ = None
+        self.columns_ = None
+        self.dtypes_ = None
+
+    def _knn_adj_list(self, X, k=10):
+      # to generate adjacency list based on knn 
+
+      nbrs = NearestNeighbors(n_neighbors=k+1).fit(X)
+      _, indices = nbrs.kneighbors(X)
+ 
+      adj = {}
+      for i, neigh in enumerate(indices):
+        adj[i] = neigh[1:].tolist()
+      return adj
+    
+    def _microaggregate_cluster(self, cluster, X):
+       # select data that needs microaggregation from clustering
+       nodes = cluster.getNodes()
+       temp = X.loc[nodes]
+
+       aggregated = {}
+
+       for col in X.columns:
+          if np.issubdtype(temp[col].dtype, np.number):
+             aggregated[col] = temp[col].mean()
+          else:
+             aggregated[col] = temp[col].mode(dropna = True).iloc[0]
+             
+       return aggregated, nodes
+
+
+    def fit(self, X, y=None, k_graph=10):
+      """
+      Based on logic of SaNGReea algorithm
+      https://github.com/tanjascats/SaNGreeA-anonymisation/blob/master/src/SaNGreeA.py
+
+      X: features
+      returns: locally anonymized features
+      """
+
+      adults = X.to_dict(orient="index")
+      clusters = []
+      added = {}
+
+      # if gen_hierarchies not provided (default)
+      if self.gen_hierarchies is None:
+        self.gen_hierarchies = {"categorical": {}, "range": {}}
+
+        # Categorical columns must be provided in original DataFrame
+        cat_cols = X.select_dtypes(include="object").columns
+        for col in cat_cols:
+            unique_vals = X[col].unique()
+            self.gen_hierarchies["categorical"][col] = CGH.CatGenHierarchy(col, {val: '*' for val in unique_vals})
+
+        # Range hierarchies for numeric columns
+        num_cols = X.select_dtypes(include="number").columns
+        for col in num_cols:
+            col_min = X[col].min()
+            col_max = X[col].max()
+            self.gen_hierarchies["range"][col] = RGH.RangeGenHierarchy(col, col_min, col_max)
+
+
+      # If adjacency list not provided (default), compute using k-NN
+      if self.adj_list is None:
+         self.adj_list = self._knn_adj_list(X, k=k_graph)
+
+      for node in adults:
+         
+        if added.get(node, False):
+          continue
+
+        cluster = CL.NodeCluster(node, adults, self.adj_list, self.gen_hierarchies)
+        added[node] = True
+
+        while len(cluster.getNodes()) < self.k:
+          best_cost = 1e9
+          best_candidate = None
+          
+          for candidate in adults:
+            if added.get(candidate, False):
+              continue
+            
+            cost = cluster.computeNodeCost(candidate)
+            if cost < best_cost:
+              best_cost = cost
+              best_candidate = candidate
+              
+          if best_candidate is None:
+            # no more candidates to add, break the loop
+            break
+
+          cluster.addNode(best_candidate)
+          added[best_candidate] = True
+          
+        clusters.append(cluster)
+        
+      self.clusters_ = clusters
+      self.columns_ = X.columns
+      self.dtypes_ = X.dtypes
+      
+      return self
+    
+    def transform(self, X):
+       rows = {}
+       
+       for cluster in self.clusters_:
+          agg_row, nodes = self.microaggregate_cluster(cluster, X)
+          
+          for node in nodes:
+             rows[node] = agg_row.copy()
+
+       return pd.DataFrame.from_dict(rows, orient="index").loc[X.index]
 
 
 
