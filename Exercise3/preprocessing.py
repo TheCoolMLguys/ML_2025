@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.preprocessing import StandardScaler,
+from sklearn.preprocessing import StandardScaler, RobustScaler, OrdinalEncoder, OneHotEncoder
 import modules.nodeCluster as CL
 import modules.catGenHierarchy as CGH
 import modules.rangeGenHierarchy as RGH
@@ -130,28 +130,52 @@ class SaNGreeATransformer(BaseEstimator, TransformerMixin):
 
 
 
-class Personality_type_preprocessing(BaseEstimator, TransformerMixin):
+class breast_cancer_preprocessing(BaseEstimator, TransformerMixin):
 
- # BaseEstimator and TransformerMixin for creating a custom transformer class
+
 
   def __init__(self):
 
-    self.scaler = StandardScaler() 
+    self.scaler = RobustScaler() 
 
    
-  def impute_data(self, X, Y=None):
+  # drop area and perimeter columns, since they are functions of radius
+  # drop ID column, not of any information value
+  def drop_area_perimeter_ID_cols(self, X):
 
-     categorical_columns = ['Gender', 'Interest']
+    X = X.drop(columns = ["ID"])
+    X.columns = X.columns.str.strip()
+    return X.drop(X.filter(regex = "perimeter|area", axis = 1).columns, axis = 1)
 
-     X_encoded = pd.get_dummies(X, columns=categorical_columns, dtype='int')
-    
-     return X_encoded, Y
 
-  
+  # idea: quantify skewness and create threshold, which if passed, variables will be log transformed (comparison with and without)
+  def log_transform_dueto_skew(self, X, fit=False):
+
+   if fit:
+     df_log = X.copy()
+     numeric_cols = X.select_dtypes(include='number').columns
+     
+     skewness_values = df_log[numeric_cols].apply(lambda x: skew(x, bias=False))
+     self.highly_skewed = skewness_values[abs(skewness_values) >= 3].index
+     
+     # make sure there are no negative values
+     min_vals = df_log[self.highly_skewed].min()
+     shifts = (min_vals <= 0) * (-min_vals + 1)
+     log_transformed = np.log1p(df_log[self.highly_skewed] + shifts).rename(columns=lambda x: f"log_{x}")
+     
+     df_log = df_log.drop(columns=self.highly_skewed)
+     df_log = pd.concat([df_log, log_transformed], axis = 1)
+     
+     return df_log
+   
+   return X
+
+
   
   def fit(self, X, Y=None):
         # Fit the scaler only on training X
-        X_transformed, Y = self.impute_data(X, Y)
+        X_transformed = self.drop_area_perimeter_ID_cols(X)
+        #X_transformed = self.log_transform_dueto_skew(X_prime, False)
 
         numeric_colums = X_transformed.select_dtypes(include='number').columns
         self.scaler.fit(X_transformed[numeric_colums])
@@ -160,13 +184,11 @@ class Personality_type_preprocessing(BaseEstimator, TransformerMixin):
 
   def transform(self, X, Y=None):
 
-        X_transformed, Y = self.impute_data(X, Y)
+        X_transformed = self.drop_area_perimeter_ID_cols(X)
+        #X_transformed = self.log_transform_dueto_skew(X_prime, False)
         numeric_colums = X_transformed.select_dtypes(include='number').columns
 
         X_transformed[numeric_colums] = self.scaler.transform(X_transformed[numeric_colums])
-
-        if Y is not None:
-            return X_transformed, Y
 
         return X_transformed
 
@@ -214,8 +236,6 @@ class Phone_Addiction_preprocessing(BaseEstimator, TransformerMixin):
 
         X_transformed = self.simple_preprocess(X)
 
-        if Y is not None:
-            return X_transformed, Y
 
         return X_transformed
 
@@ -250,14 +270,11 @@ class Student_placement_preprocessing(BaseEstimator, TransformerMixin):
       return self
 
 
-  def transform(self, X, Y=None):
+    def transform(self, X, Y=None):
 
       X_transformed, Y = self.impute_data(X, Y)
       numeric_colums = X_transformed.select_dtypes(include='number').columns
 
       X_transformed[numeric_colums] = self.scaler.transform(X_transformed[numeric_colums])
-
-      if Y is not None:
-            return X_transformed, Y
 
       return X_transformed
