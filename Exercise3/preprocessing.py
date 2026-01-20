@@ -127,6 +127,7 @@ class SaNGreeATransformer(BaseEstimator, TransformerMixin):
         """
         rows = {}
         for cluster in clusters:
+
           nodes = cluster.getNodes()
           anonymized_rows = cluster.getAllAnonymizedNodes()
           for idx, node in enumerate(nodes):
@@ -141,7 +142,6 @@ class SaNGreeATransformer(BaseEstimator, TransformerMixin):
         df = df.loc[X.index]  # preserve order
        
         return df
-
 
     
 class SaNGreeATransformer_microaggregation(BaseEstimator, TransformerMixin):
