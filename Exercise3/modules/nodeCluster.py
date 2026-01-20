@@ -123,7 +123,7 @@ class NodeCluster:
            row = {}
 
            for col, value_range in self._genRangeFeatures.items():
-              row[col] = value_range[0] if value_range[0] == value_range[1] else f"[{value_range[0]}-{value_range[1]}]"
+              row[col] = value_range[0] if value_range[0] == value_range[1] else (value_range[0] + value_range[1])/2
 
            for col, val in self._genCatFeatures.items():
               row[col] = val
