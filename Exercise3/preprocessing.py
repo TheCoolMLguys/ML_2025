@@ -148,14 +148,11 @@ class SaNGreeATransformer_microaggregation(BaseEstimator, TransformerMixin):
        
     "Local k-anonymization using the SaNGreeA algorithm."
 
-    def __init__(self, k, gen_hierarchies=None, adj_list=None):
+    def __init__(self, k, cat_features=None, gen_hierarchies=None, adj_list=None):
         self.k = k
         self.gen_hierarchies = gen_hierarchies # json file input
+        self.cat_features = cat_features
         self.adj_list = adj_list
-
-        self.clusters_ = None
-        self.columns_ = None
-        self.dtypes_ = None
 
     def _knn_adj_list(self, X, k=10):
       # to generate adjacency list based on knn 
@@ -175,14 +172,14 @@ class SaNGreeATransformer_microaggregation(BaseEstimator, TransformerMixin):
 
        aggregated = {}
 
-       for col in X.columns:
-          if np.issubdtype(temp[col].dtype, np.number):
-             aggregated[col] = temp[col].mean()
-          else:
-             aggregated[col] = temp[col].mode(dropna = True).iloc[0]
+       for col in self.numeric_features:
+        aggregated[col] = temp[col].mean()
+
+       for col in self.categorical_features:
+        aggregated[col] = temp[col].mode(dropna=True).iloc[0]
              
        return aggregated, nodes
-
+    
 
     def fit(self, X, y=None, k_graph=10):
       """
@@ -197,19 +194,26 @@ class SaNGreeATransformer_microaggregation(BaseEstimator, TransformerMixin):
       clusters = []
       added = {}
 
+      if self.cat_features is None:
+        self.categorical_features = set(X.select_dtypes(include=["object", "category"]).columns)
+      else:
+        self.categorical_features = set(self.cat_features)
+
+      self.numeric_features = [
+          col for col in X.columns if col not in self.cat_features
+      ]     
+
       # if gen_hierarchies not provided (default)
       if self.gen_hierarchies is None:
         self.gen_hierarchies = {"categorical": {}, "range": {}}
 
         # Categorical columns must be provided in original DataFrame
-        cat_cols = X.select_dtypes(include="object").columns
-        for col in cat_cols:
+        for col in self.categorical_features:
             unique_vals = X[col].unique()
             self.gen_hierarchies["categorical"][col] = CGH.CatGenHierarchy(col, {val: '*' for val in unique_vals})
 
         # Range hierarchies for numeric columns
-        num_cols = X.select_dtypes(include="number").columns
-        for col in num_cols:
+        for col in self.numeric_features:
             col_min = X[col].min()
             col_max = X[col].max()
             self.gen_hierarchies["range"][col] = RGH.RangeGenHierarchy(col, col_min, col_max)
@@ -256,10 +260,11 @@ class SaNGreeATransformer_microaggregation(BaseEstimator, TransformerMixin):
       return self
     
     def transform(self, X):
+       # use clustering from SaNGReea algorithm to aggregate
        rows = {}
        
        for cluster in self.clusters_:
-          agg_row, nodes = self.microaggregate_cluster(cluster, X)
+          agg_row, nodes = self._microaggregate_cluster(cluster, X)
           
           for node in nodes:
              rows[node] = agg_row.copy()
@@ -360,13 +365,22 @@ class Phone_Addiction_preprocessing(BaseEstimator, TransformerMixin):
         X = X.drop(columns=self.onehot_vars)
         X = pd.concat([X, onehot_df], axis=1)
 
+        # Label/OrdinalEncoder
+        #X[self.cat_vars] = self.ordinal_encoder_.transform(X[self.cat_vars])
+
         return X 
 
     def fit(self, X, Y=None):
 
-        self.onehot_vars = [c for c in X.select_dtypes(include="object").columns if c not in  ["ID", "Name", "Location", "School_Grade"]]
-        self.onehot = OneHotEncoder(drop="if_binary", sparse_output=False)
+        # One Hot
+        self.onehot_vars = [c for c in X.select_dtypes(include="object").columns if c not in ["ID", "Name", "Location", "School_Grade"]] 
+        self.onehot = OneHotEncoder(drop="if_binary", sparse_output=False) 
         self.onehot.fit(X[self.onehot_vars])
+
+        # Label/OrdinalEncoder
+        #self.cat_vars = [c for c in X.select_dtypes(include="object").columns if c not in  ["ID", "Name", "Location", "School_Grade"]]
+        #self.ordinal_encoder_ = OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)
+        #self.ordinal_encoder_.fit(X[self.cat_vars])
 
         # transform
         self.simple_preprocess(X)
