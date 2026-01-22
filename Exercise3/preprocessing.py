@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 from scipy.stats import skew
-from sklearn.preprocessing import StandardScaler, RobustScaler, OrdinalEncoder, OneHotEncoder
+from sklearn.preprocessing import StandardScaler, RobustScaler, OrdinalEncoder, OneHotEncoder, LabelEncoder
 import pandas as pd
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -29,17 +29,36 @@ class SaNGreeATransformer(BaseEstimator, TransformerMixin):
         self.adj_list = adj_list
 
 
-    def _knn_adj_list(self, X, k=10):
-   
-       # to generate adjacency list based on knn 
+    
+    def _knn_adj_list(self, X, k=5, ignore_columns=None):
 
-       nbrs = NearestNeighbors(n_neighbors=k+1).fit(X)
-       _, indices = nbrs.kneighbors(X)
- 
-       adj = {}
-       for i, neigh in enumerate(indices):
-          adj[i] = neigh[1:].tolist()
-       return adj
+
+      X_knn = X.copy()
+
+    # Drop ignored columns (e.g., names)
+      if ignore_columns is not None:
+        X_knn = X_knn.drop(columns=ignore_columns, errors='ignore')
+
+    # Initialize encoders dictionary
+      self._knn_encoders = {}
+
+    # Encode categorical columns
+      for col in X_knn.select_dtypes(include='object').columns:
+        le = LabelEncoder()
+        X_knn[col] = le.fit_transform(X_knn[col].astype(str))
+        self._knn_encoders[col] = le
+
+    # Ensure all remaining columns are numeric
+      X_knn = X_knn.apply(pd.to_numeric)
+
+    # Fit NearestNeighbors
+      nbrs = NearestNeighbors(n_neighbors=k+1, algorithm='auto').fit(X_knn)
+      distances, indices = nbrs.kneighbors(X_knn)
+
+    # Build adjacency list (skip self, which is first)
+      adj_list = {i: list(indices[i][1:]) for i in range(len(X_knn))}
+
+      return adj_list
 
 
 
@@ -57,10 +76,12 @@ class SaNGreeATransformer(BaseEstimator, TransformerMixin):
             self.gen_hierarchies["categorical"][col] = CGH.CatGenHierarchy(col, {val: '*' for val in unique_vals})
 
         # Range hierarchies for numeric columns
+        self.range_bounds = {}
         num_cols = X.select_dtypes(include="number").columns
         for col in num_cols:
             col_min = X[col].min()
             col_max = X[col].max()
+            self.range_bounds[col] = (col_min, col_max)
             self.gen_hierarchies["range"][col] = RGH.RangeGenHierarchy(col, col_min, col_max)
 
 
@@ -80,6 +101,10 @@ class SaNGreeATransformer(BaseEstimator, TransformerMixin):
         X: features
         returns: locally anonymized features
         """
+
+        X = X.copy()
+        for col, (low, high) in self.range_bounds.items():
+              X[col] = X[col].clip(lower=low, upper=high)
 
         adults = X.to_dict(orient="index")
         clusters = []
@@ -272,7 +297,6 @@ class SaNGreeATransformer_microaggregation(BaseEstimator, TransformerMixin):
        return pd.DataFrame.from_dict(rows, orient="index").loc[X.index]
 
 
-
 ''' Data preprocessing - Class definition  '''
 
 
@@ -281,9 +305,15 @@ class breast_cancer_preprocessing(BaseEstimator, TransformerMixin):
 
 
 
-  def __init__(self):
+  def __init__(self, anonymity=False, k=5, anonymizer_class=None):
 
-    self.scaler = RobustScaler() 
+    self.scaler = RobustScaler()
+    self.anonymity = anonymity
+    self.k = k
+    self.anonymizer_class = anonymizer_class
+    self.label_encoders = {}     
+    self.numeric_columns = None
+    self.cat_columns = None
 
    
   # drop area and perimeter columns, since they are functions of radius
@@ -295,103 +325,137 @@ class breast_cancer_preprocessing(BaseEstimator, TransformerMixin):
     return X.drop(X.filter(regex = "perimeter|area", axis = 1).columns, axis = 1)
 
 
-  # idea: quantify skewness and create threshold, which if passed, variables will be log transformed (comparison with and without)
-  def log_transform_dueto_skew(self, X, fit=False):
-
-   if fit:
-     df_log = X.copy()
-     numeric_cols = X.select_dtypes(include='number').columns
-     
-     skewness_values = df_log[numeric_cols].apply(lambda x: skew(x, bias=False))
-     self.highly_skewed = skewness_values[abs(skewness_values) >= 3].index
-     
-     # make sure there are no negative values
-     min_vals = df_log[self.highly_skewed].min()
-     shifts = (min_vals <= 0) * (-min_vals + 1)
-     log_transformed = np.log1p(df_log[self.highly_skewed] + shifts).rename(columns=lambda x: f"log_{x}")
-     
-     df_log = df_log.drop(columns=self.highly_skewed)
-     df_log = pd.concat([df_log, log_transformed], axis = 1)
-     
-     return df_log
-   
-   return X
-
-
   
   def fit(self, X, Y=None):
-        # Fit the scaler only on training X
-        X_transformed = self.drop_area_perimeter_ID_cols(X)
-        #X_transformed = self.log_transform_dueto_skew(X_prime, False)
 
-        numeric_colums = X_transformed.select_dtypes(include='number').columns
-        self.scaler.fit(X_transformed[numeric_colums])
+        X_transformed = self.drop_area_perimeter_ID_cols(X)
+
+     
+        self.numeric_columns = X_transformed.select_dtypes(include="number").columns.tolist()
+        self.cat_columns = X_transformed.select_dtypes(include="object").columns.tolist()
+
+        self.scaler.fit(X_transformed[self.numeric_columns])
+
+    
+        if self.anonymity and self.anonymizer_class is not None:
+            self.anonymizer = self.anonymizer_class(k=self.k)
+            self.anonymizer.fit(X_transformed)
+
         return self
 
 
   def transform(self, X, Y=None):
 
         X_transformed = self.drop_area_perimeter_ID_cols(X)
-        #X_transformed = self.log_transform_dueto_skew(X_prime, False)
-        numeric_colums = X_transformed.select_dtypes(include='number').columns
 
-        X_transformed[numeric_colums] = self.scaler.transform(X_transformed[numeric_colums])
+
+        X_transformed[self.numeric_columns] = self.scaler.transform(X_transformed[self.numeric_columns])
+
+
+        if self.anonymity:
+            X_transformed = self.anonymizer.transform(X_transformed)
+
+  
+        for col in X_transformed.select_dtypes(include="object").columns:
+            if col not in self.label_encoders:
+                le = LabelEncoder()
+                le.fit(X_transformed[col].astype(str))
+                self.label_encoders[col] = le
+            else:
+                le = self.label_encoders[col]
+
+            X_transformed[col] = le.transform(X_transformed[col].astype(str))
 
         return X_transformed
 
 
-class Phone_Addiction_preprocessing(BaseEstimator, TransformerMixin):
+class Personality_type_preprocessing(BaseEstimator, TransformerMixin):
 
 
-    def __init__(self):
-          
-        self.oe = None
-        self.onehot = None
-        self.onehot_vars = None
+    def __init__(self, anonymity=False, k=5, anonymizer_class=None):
+
+        self.scaler = StandardScaler()
+        self.label_encoders = {}
+        self.k = k
+        self.feature_columns = None
+        self.numeric_columns = None
+        self.anonymity = anonymity
+        self.anonymizer_class = anonymizer_class
+        self.categorical_columns = ['Gender', 'Interest']
+        self.unknown_label = '__unknown__'
 
     
-    def simple_preprocess(self, X):
-        
-        # drop identifiers
-        X = X.drop(columns=["ID", "Name", "Location"], errors="ignore").copy()
-        # make school grade numeric
-        X['School_Grade'] = X['School_Grade'].str.extract(r"(\d+)").astype(int)
+    def impute_data(self, X):
+        return X.copy()
 
-        # One Hot encoding 
-        onehot_encoded = self.onehot.transform(X[self.onehot_vars])
-        onehot_cols = self.onehot.get_feature_names_out(self.onehot_vars)
-        onehot_df = pd.DataFrame(onehot_encoded, columns=onehot_cols, index=X.index)
 
-        X = X.drop(columns=self.onehot_vars)
-        X = pd.concat([X, onehot_df], axis=1)
+    def get_numeric_columns_after_anonymization(self, X):
+       
+       cols = []
 
-        # Label/OrdinalEncoder
-        #X[self.cat_vars] = self.ordinal_encoder_.transform(X[self.cat_vars])
+       for col in self.numeric_columns:
+          if col in X.columns:
+ 
+             cols.append(col)
+          elif f"{col}_min" in X.columns and f"{col}_max" in X.columns:
+             # local transformation with ranges
+             cols.extend([f"{col}_min", f"{col}_max"])
 
-        return X 
+       return cols
+
+
 
     def fit(self, X, Y=None):
 
-        # One Hot
-        self.onehot_vars = [c for c in X.select_dtypes(include="object").columns if c not in ["ID", "Name", "Location", "School_Grade"]] 
-        self.onehot = OneHotEncoder(drop="if_binary", sparse_output=False) 
-        self.onehot.fit(X[self.onehot_vars])
+       X = self.impute_data(X)
 
-        # Label/OrdinalEncoder
-        #self.cat_vars = [c for c in X.select_dtypes(include="object").columns if c not in  ["ID", "Name", "Location", "School_Grade"]]
-        #self.ordinal_encoder_ = OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)
-        #self.ordinal_encoder_.fit(X[self.cat_vars])
+       self.numeric_columns = (X.drop(columns=self.categorical_columns).select_dtypes(include='number').columns)
 
-        # transform
-        self.simple_preprocess(X)
+       self.scaler.fit(X[self.numeric_columns])
 
-        return self
+       X_scaled = X.copy()
+       X_scaled[self.numeric_columns] = self.scaler.transform(X[self.numeric_columns])
+
+       if self.anonymity:
+           self.anonymizer = self.anonymizer_class(k=self.k)
+           self.anonymizer.fit(X_scaled)
+
+       for col in self.categorical_columns:
+            le = LabelEncoder()
+            le.fit(list(X_scaled[col].astype(str)) + [self.unknown_label])
+           # le.fit(X_scaled[col].astype(str))
+            self.label_encoders[col] = le
+
+
+       return self
+
+
 
 
     def transform(self, X, Y=None):
 
-        X_transformed = self.simple_preprocess(X)
 
+        X = self.impute_data(X)
+
+        X_scaled = X.copy()
+        X_scaled[self.numeric_columns] = self.scaler.transform(X[self.numeric_columns])
+
+        if self.anonymity and self.anonymizer_class is not None:
+            X_scaled = self.anonymizer.transform(X_scaled)
+
+        new_numeric_cols = self.get_numeric_columns_after_anonymization(X_scaled)
+
+        X_cat = pd.DataFrame(index=X_scaled.index)
+
+        for col in self.categorical_columns:
+            values = X_scaled[col].astype(str).apply(
+                lambda x: x if x in self.label_encoders[col].classes_ else self.unknown_label)
+
+            X_cat[col] = self.label_encoders[col].transform(values) #X_scaled[col].astype(str))
+
+        X_num = X_scaled[new_numeric_cols]
+
+        X_transformed = pd.concat([X_num, X_cat], axis=1)
 
         return X_transformed
 
@@ -399,38 +463,91 @@ class Phone_Addiction_preprocessing(BaseEstimator, TransformerMixin):
 
 class Student_placement_preprocessing(BaseEstimator, TransformerMixin):
 
-
-    def __init__(self):
-
-      self.scaler = StandardScaler() 
-
-   
-    def impute_data(self, X, Y=None):
-
-      X = X.drop(columns=["Student_ID",], errors="ignore").copy()
-      categorical_columns = ['Gender', 'Degree', 'Branch']
-
-      X_encoded = pd.get_dummies(X, columns=categorical_columns, dtype='int')
+    def __init__(self, anonymity=False, k=5, anonymizer_class=None):
     
-      return X_encoded, Y
 
-  
-  
-    def fit(self, X, Y=None):
+        self.scaler = StandardScaler()
+        self.categorical_columns = ['Gender', 'Degree', 'Branch']
+        self.numeric_columns = None
+        self.k = k
+        self.numeric_columns = None
+        self.label_encoders = {}
+        self.anonymity = anonymity
+        self.anonymizer_class = anonymizer_class
+        self.unknown_label = '__unknown__'
+
+
+    def impute_data(self, X):
+
+        X = X.drop(columns=["Student_ID"], errors="ignore").copy()
+        return X
+
+    def get_numeric_columns_after_anonymization(self, X):
        
-        # Fit the scaler only on training X
-      X_transformed, Y = self.impute_data(X, Y)
+       cols = []
 
-      numeric_colums = X_transformed.select_dtypes(include='number').columns
-      self.scaler.fit(X_transformed[numeric_colums])
-      return self
+       for col in self.numeric_columns:
+          if col in X.columns:
+ 
+             cols.append(col)
+          elif f"{col}_min" in X.columns and f"{col}_max" in X.columns:
+             # local transformation with ranges
+             cols.extend([f"{col}_min", f"{col}_max"])
+
+       return cols
+
+
+
+    def fit(self, X, Y=None):
+
+       X = self.impute_data(X)
+
+       self.numeric_columns = (X.drop(columns=self.categorical_columns).select_dtypes(include='number').columns)
+
+       self.scaler.fit(X[self.numeric_columns])
+
+       X_scaled = X.copy()
+       X_scaled[self.numeric_columns] = self.scaler.transform(X[self.numeric_columns])
+
+       if self.anonymity:
+           self.anonymizer = self.anonymizer_class(k=self.k)
+           self.anonymizer.fit(X_scaled)
+
+       for col in self.categorical_columns:
+            le = LabelEncoder()
+            le.fit(list(X_scaled[col].astype(str)) + [self.unknown_label])
+           # le.fit(X_scaled[col].astype(str))
+            self.label_encoders[col] = le
+
+
+       return self
+
+
 
 
     def transform(self, X, Y=None):
 
-      X_transformed, Y = self.impute_data(X, Y)
-      numeric_colums = X_transformed.select_dtypes(include='number').columns
 
-      X_transformed[numeric_colums] = self.scaler.transform(X_transformed[numeric_colums])
+        X = self.impute_data(X)
 
-      return X_transformed
+        X_scaled = X.copy()
+        X_scaled[self.numeric_columns] = self.scaler.transform(X[self.numeric_columns])
+
+        if self.anonymity and self.anonymizer_class is not None:
+            X_scaled = self.anonymizer.transform(X_scaled)
+
+        new_numeric_cols = self.get_numeric_columns_after_anonymization(X_scaled)
+
+        X_cat = pd.DataFrame(index=X_scaled.index)
+
+        for col in self.categorical_columns:
+            values = X_scaled[col].astype(str).apply(
+                lambda x: x if x in self.label_encoders[col].classes_ else self.unknown_label)
+
+            X_cat[col] = self.label_encoders[col].transform(values) #X_scaled[col].astype(str))
+
+        X_num = X_scaled[new_numeric_cols]
+
+        X_transformed = pd.concat([X_num, X_cat], axis=1)
+
+        return X_transformed

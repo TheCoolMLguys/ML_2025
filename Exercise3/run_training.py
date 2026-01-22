@@ -1,6 +1,6 @@
 import pandas as pd 
 import numpy as np 
-from preprocessing import breast_cancer_preprocessing, Phone_Addiction_preprocessing, Student_placement_preprocessing, SaNGreeATransformer
+from preprocessing import breast_cancer_preprocessing, Personality_type_preprocessing, Student_placement_preprocessing, SaNGreeATransformer
 from sklearn.pipeline import make_pipeline
 from sklearn.model_selection import train_test_split, cross_validate, KFold
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, make_scorer
@@ -81,27 +81,28 @@ def find_mean_values(metrics_list):
     return mean_results
 
 
-def run(datasets, state, anonymity = True):
+def run(datasets, state):
 
-    
-    print(f"Anonymization: {anonymity}")
 
     for keys, data in datasets.items():
         
-        print("#"*30)
-        print(f"Starting modeling of dataset {keys}")
+      print("#"*30)
+      print(f"Starting modeling of dataset {keys}")
 
-        preprocessing_class_instance = data[2]()  # instantiate preprocessing class
         
         # Split data into 80-20%
-        X_train, y_train, X_valid, y_valid = split_dataset(data[0], data[1], 0.2)
+      X_train, y_train, X_valid, y_valid = split_dataset(data[0], data[1], 0.2)
         
 
-        models = {"RandomForest": RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42),
+      models = {"RandomForest": RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42),
                   "LogisticRegression": LogisticRegression(max_iter=1000, random_state=42),
                   "KNN": KNeighborsClassifier(n_neighbors=5)}
 
         # Iterate over all classifiers
+      for anonymity in [False, True]:
+        
+        print(f"Anonymization: {anonymity}")
+        preprocessing_class_instance = data[2](anonymity=anonymity, k=5, anonymizer_class=SaNGreeATransformer)
 
         for name, classifier in models.items():
        
@@ -117,22 +118,15 @@ def run(datasets, state, anonymity = True):
             y_train_cv, y_val_cv = y_train.iloc[train_idx].reset_index(drop=True), y_train.iloc[val_idx].reset_index(drop=True)
 
             preprocess = preprocessing_class_instance
+             
             X_train_prep = preprocess.fit_transform(X_train_cv)
             X_val_prep   = preprocess.transform(X_val_cv)
-       
-            
-            if anonymity:
-               sangreea = SaNGreeATransformer(k=5)
-               sangreea.fit(X_train_prep)
-               X_train_anon = sangreea.transform(X_train_prep)
-         
-            else:
-                X_train_anon = X_train_prep.copy()
+
 
             model = classifier
 
             start = time.time()
-            model.fit(X_train_anon, y_train_cv)
+            model.fit(X_train_prep, y_train_cv)
             train_time = time.time() - start
 
             y_pred = model.predict(X_val_prep)
@@ -147,18 +141,15 @@ if __name__ == '__main__':
 
 
     df_breast_cancer = pd.read_csv("data"+ os.sep + "breast-cancer-diagnostic.shuf.lrn.csv")
-    df_teen_addiction = pd.read_csv("data"+ os.sep + "teen_phone_addiction_dataset.csv")
+    df_personality = pd.read_csv("data"+ os.sep + "personality_types_data_v2.csv")
     df_student_placement = pd.read_csv("data"+ os.sep + "student_placement.csv")
 
 
-    df_teen_addiction['Addiction_Level'] = df_teen_addiction['Addiction_Level'].round(0)
-
     # Define the dataset dictionary
 
-    datasets = {"Breast_cancer": [df_breast_cancer, "class", breast_cancer_preprocessing],
-                "Teen Addiction": [df_teen_addiction, "Addiction_Level", Phone_Addiction_preprocessing],
-                "Student Placement": [df_student_placement, "Placement_Status", Student_placement_preprocessing]}
+    datasets = {#"Breast_cancer": [df_breast_cancer, "class", breast_cancer_preprocessing],
+                "Personality type": [df_personality, "Personality", Personality_type_preprocessing]} #,
+                #"Student Placement": [df_student_placement, "Placement_Status", Student_placement_preprocessing]}
 
-    run(datasets, state=42, anonymity = False)
 
-    run(datasets, state=42, anonymity = True)
+    run(datasets, state=42)
