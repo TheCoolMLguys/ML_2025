@@ -1,0 +1,60 @@
+{
+	"name": "Degree",
+	"entries":
+	{
+		"all": 
+		{
+			"name": "*",
+			"gen": "all",
+			"level": 0
+		},
+		"Undergraduate": 
+		{
+			"name": "Undergraduate", 
+			"gen": "all",
+			"level": 1
+		},
+        "Undergraduate": 
+		{
+			"name": "Undergraduate", 
+			"gen": "all",
+			"level": 1
+		},
+        "Undergraduate": 
+		{
+			"name": "Undergraduate", 
+			"gen": "all",
+			"level": 1
+		},
+		"Graduate": 
+		{
+			"name": "Graduate", 
+			"gen": "all",
+			"level": 1
+		},
+        "B.Sc": 
+		{
+			"name": "B.Sc", 
+			"gen": "Undergraduate",
+			"level": 2
+		},
+        "B.Tech": 
+		{
+			"name": "B.Tech", 
+			"gen": "Undergraduate",
+			"level": 2
+		},
+        "BCA": 
+		{
+			"name": "BCA", 
+			"gen": "Undergraduate",
+			"level": 2
+		},
+		"MCA": 
+		{
+			"name": "MCA", 
+			"gen": "Graduate",
+			"level": 2
+		}
+	}
+}

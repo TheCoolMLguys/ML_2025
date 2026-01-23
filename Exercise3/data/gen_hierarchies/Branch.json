@@ -1,0 +1,54 @@
+{
+	"name": "Branch",
+	"entries":
+	{
+		"all": 
+		{
+			"name": "*",
+			"gen": "all",
+			"level": 0
+		},
+		"Computing": 
+		{
+			"name": "Computing", 
+			"gen": "all",
+			"level": 1
+		},
+        "Mechanical & Civil": 
+		{
+			"name": "Mechanical & Civil", 
+			"gen": "all",
+			"level": 1
+		},
+        "Electrical & IT": 
+		{
+			"name": "Electrical", 
+			"gen": "all",
+			"level": 1
+		},
+        "ECE": 
+		{
+			"name": "ECE", 
+			"gen": "Electrical & IT",
+			"level": 2
+		},
+        "IT": 
+		{
+			"name": "IT", 
+			"gen": "Electrical & IT",
+			"level": 2
+		},
+        "Civil": 
+		{
+			"name": "Civil", 
+			"gen": "Mechanical & Civil",
+			"level": 2
+		},
+		"ME": 
+		{
+			"name": "ME", 
+			"gen": "Mechanical & Civil",
+			"level": 2
+		}
+	}
+}

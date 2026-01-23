@@ -1,0 +1,42 @@
+{
+	"name": "Interest",
+	"entries":
+	{
+		"all": 
+		{
+			"name": "*",
+			"gen": "all",
+			"level": 0
+		},
+		"Sports": 
+		{
+			"name": "Sports", 
+			"gen": "all",
+			"level": 1
+		},
+		"Others": 
+		{
+			"name": "Others", 
+			"gen": "all",
+			"level": 1
+		},
+        "Technology": 
+		{
+			"name": "Technology", 
+			"gen": "all",
+			"level": 1
+		},
+        "Unknown": 
+		{
+			"name": "Unknown", 
+			"gen": "all",
+			"level": 1
+		},
+        "Arts": 
+		{
+			"name": "Arts", 
+			"gen": "all",
+			"level": 1
+		}
+	}
+}
