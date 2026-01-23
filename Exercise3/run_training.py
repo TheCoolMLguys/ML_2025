@@ -147,7 +147,7 @@ if __name__ == '__main__':
 
     # Define the dataset dictionary
 
-    datasets = {#"Breast_cancer": [df_breast_cancer, "class", breast_cancer_preprocessing],
+    datasets = {"Breast_cancer": [df_breast_cancer, "class", breast_cancer_preprocessing],
                 "Personality type": [df_personality, "Personality", Personality_type_preprocessing]} #,
                 #"Student Placement": [df_student_placement, "Placement_Status", Student_placement_preprocessing]}
 
