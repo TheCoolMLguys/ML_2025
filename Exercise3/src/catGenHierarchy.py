@@ -1,4 +1,4 @@
-import src.io.jsonInput as json
+import src.io.jsonInput as custom_json
 
 
 class CatGenHierarchy:
@@ -11,7 +11,7 @@ class CatGenHierarchy:
 
 
     def readFromJSON(self, json_file):
-        json_struct = json.readJSON(json_file)
+        json_struct = custom_json.readJSON(json_file)
         entries = json_struct.get('entries')
         root_levels = 0
 
