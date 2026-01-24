@@ -233,7 +233,7 @@ class SaNGreeATransformer(BaseEstimator, TransformerMixin):
     
 class SaNGreeATransformer_microaggregation(BaseEstimator, TransformerMixin):
        
-    "Local k-anonymization using the SaNGreeA algorithm."
+    "Microaggregation k-anonymization using the SaNGreeA algorithm."
 
     def __init__(self, k, cat_features=None, gen_hierarchies=None, adj_list=None):
         self.k = k
@@ -241,54 +241,60 @@ class SaNGreeATransformer_microaggregation(BaseEstimator, TransformerMixin):
         self.cat_features = cat_features
         self.adj_list = adj_list
 
-    def _knn_adj_list(self, X, k=10):
-      # to generate adjacency list based on knn 
+    def _knn_adj_list(self, X, k=5, ignore_columns=None):
 
-      nbrs = NearestNeighbors(n_neighbors=k+1).fit(X)
-      _, indices = nbrs.kneighbors(X)
- 
-      adj = {}
-      for i, neigh in enumerate(indices):
-        adj[i] = neigh[1:].tolist()
-      return adj
-    
-    def _microaggregate_cluster(self, cluster, X):
-       # select data that needs microaggregation from clustering
-       nodes = cluster.getNodes()
-       temp = X.loc[nodes]
+      X_knn = X.copy()
 
-       aggregated = {}
+    # Drop ignored columns (e.g., names)
+      if ignore_columns is not None:
+        X_knn = X_knn.drop(columns=ignore_columns, errors='ignore')
 
-       for col in self.numeric_features:
-        aggregated[col] = temp[col].mean()
+    # Initialize encoders dictionary
+      self._knn_encoders = {}
 
-       for col in self.categorical_features:
-        aggregated[col] = temp[col].mode(dropna=True).iloc[0]
-             
-       return aggregated, nodes
-    
-
-    def fit(self, X, y=None, k_graph=10):
-      """
-      Based on logic of SaNGReea algorithm
-      https://github.com/tanjascats/SaNGreeA-anonymisation/blob/master/src/SaNGreeA.py
-
-      X: features
-      returns: locally anonymized features
-      """
-
-      adults = X.to_dict(orient="index")
-      clusters = []
-      added = {}
-
+    # Encode categorical columns
       if self.cat_features is None:
         self.categorical_features = set(X.select_dtypes(include=["object", "category"]).columns)
       else:
         self.categorical_features = set(self.cat_features)
 
       self.numeric_features = [
-          col for col in X.columns if col not in self.cat_features
+          col for col in X.columns if col not in self.categorical_features
       ]     
+
+      for col in self.categorical_features:
+        le = LabelEncoder()
+        X_knn[col] = le.fit_transform(X_knn[col].astype(str))
+        self._knn_encoders[col] = le
+
+    # Ensure all remaining columns are numeric
+      X_knn = X_knn.apply(pd.to_numeric)
+
+    # Fit NearestNeighbors
+      nbrs = NearestNeighbors(n_neighbors=k+1, algorithm='auto').fit(X_knn)
+      distances, indices = nbrs.kneighbors(X_knn)
+
+    # Build adjacency list (skip self, which is first)
+      adj_list = {i: list(indices[i][1:]) for i in range(len(X_knn))}
+
+      return adj_list
+    
+
+    def fit(self, X, y=None, k_graph=10):
+      """
+      Based on logic of SaNGReea algorithm
+      https://github.com/tanjascats/SaNGreeA-anonymisation/blob/master/src/SaNGreeA.py
+      """
+
+      # create gen_hierarchies
+      if self.cat_features is None:
+         self.categorical_features = set(X.select_dtypes(include=["object", "category"]).columns)
+      else:
+         self.categorical_features = set(self.cat_features)
+
+      self.numeric_features = [
+          col for col in X.columns if col not in self.categorical_features
+      ] 
 
       # if gen_hierarchies not provided (default)
       if self.gen_hierarchies is None:
@@ -300,15 +306,31 @@ class SaNGreeATransformer_microaggregation(BaseEstimator, TransformerMixin):
             self.gen_hierarchies["categorical"][col] = CGH.CatGenHierarchy(col, {val: '*' for val in unique_vals})
 
         # Range hierarchies for numeric columns
+        self.range_bounds = {}
         for col in self.numeric_features:
             col_min = X[col].min()
             col_max = X[col].max()
+            self.range_bounds[col] = (col_min, col_max)
             self.gen_hierarchies["range"][col] = RGH.RangeGenHierarchy(col, col_min, col_max)
 
 
       # If adjacency list not provided (default), compute using k-NN
       if self.adj_list is None:
          self.adj_list = self._knn_adj_list(X, k=k_graph)
+
+      # build clusters only for training
+      self.clusters_ = self.build_clusters(X)
+
+      # save training data
+      self.X_train_ = X.copy()
+
+      return self
+    
+    def build_clusters(self, X):
+
+      adults = X.to_dict(orient="index")
+      clusters = []
+      added = {}
 
       for node in adults:
          
@@ -319,6 +341,7 @@ class SaNGreeATransformer_microaggregation(BaseEstimator, TransformerMixin):
         added[node] = True
 
         while len(cluster.getNodes()) < self.k:
+
           best_cost = 1e9
           best_candidate = None
           
@@ -339,24 +362,90 @@ class SaNGreeATransformer_microaggregation(BaseEstimator, TransformerMixin):
           added[best_candidate] = True
           
         clusters.append(cluster)
-        
-      self.clusters_ = clusters
-      self.columns_ = X.columns
-      self.dtypes_ = X.dtypes
       
-      return self
+      return clusters
     
     def transform(self, X):
        # use clustering from SaNGReea algorithm to aggregate
-       rows = {}
        
-       for cluster in self.clusters_:
+       for col, (low, high) in self.range_bounds.items():
+          X[col] = X[col].clip(lower=low, upper=high)
+
+       if hasattr(self, "clusters_"):
+          return self.assign_to_clusters(X)
+       
+       clusters = self.build_clusters(X)
+       return self.clusters_to_dataframe(clusters, X)
+    
+    def assign_to_clusters(self, X):
+       
+       rows = {}
+
+       for idx, row in X.iterrows():
+          row_dict = row.to_dict()
+
+          best_cost = 1e9
+          best_cluster = None
+          
+          for cluster in self.clusters_:
+             cost = cluster.computeCost_per_instance(row_dict)
+             if cost < best_cost:
+                best_cost = cost
+                best_cluster = cluster
+          
+          # microaggregate over clusters + this row
+          nodes = best_cluster.getNodes()
+          temp = self.X_train_.loc[nodes]
+
+          aggregated = {}
+
+          # numeric attributes to cluster microaggregated value
+          for col in self.numeric_features:
+             aggregated[col] = temp[col].mean()
+
+          # categorical features 
+          for col in self.categorical_features:
+             aggregated[col] = temp[col].mode(dropna = True).iloc[0]
+
+          rows[idx] = aggregated
+       
+       df = pd.DataFrame.from_dict(rows, orient="index")
+       df = df.loc[X.index]
+       return df 
+    
+    def clusters_to_dataframe(self, clusters, X):
+       """
+        Converts clusters to microaggregated DataFrame.
+        Ensures every original row is present.
+        """
+       
+       rows = {}
+
+       for cluster in clusters:
           agg_row, nodes = self._microaggregate_cluster(cluster, X)
           
           for node in nodes:
              rows[node] = agg_row.copy()
 
        return pd.DataFrame.from_dict(rows, orient="index").loc[X.index]
+
+
+    def _microaggregate_cluster(self, cluster, X):
+       # select data that needs microaggregation from clustering
+       nodes = cluster.getNodes()
+       temp = X.loc[nodes]
+
+       aggregated = {}
+
+       for col in self.numeric_features:
+        aggregated[col] = temp[col].mean()
+
+       for col in self.categorical_features:
+        aggregated[col] = temp[col].mode(dropna=True).iloc[0]
+             
+       return aggregated, nodes
+
+
 
 
 ''' Data preprocessing - Class definition  '''
