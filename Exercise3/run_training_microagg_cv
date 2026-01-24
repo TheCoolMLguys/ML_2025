@@ -49,7 +49,7 @@ def run(datasets, state, anonymity=True):
 
         for name, classifier in models.items():
 
-            print(f"\nModel: {model_name}")
+            print(f"\nModel: {name}")
 
             cv = KFold(n_splits=5, shuffle=True, random_state=state)
 
@@ -91,12 +91,12 @@ def run(datasets, state, anonymity=True):
 if __name__ == "__main__":
 
     df_breast_cancer = pd.read_csv("Exercise3/data/breast-cancer-diagnostic.shuf.lrn.csv")
-    df_personality = pd.read_csv("Exercise3/data/Exercise3/data/personality_types_data_v2.csv")
+    df_personality = pd.read_csv("Exercise3/data/personality_types_data_v2.csv")
     df_student_placement = pd.read_csv("Exercise3/data/student_placement.csv")
 
     datasets = {"Breast Cancer": [df_breast_cancer, "class", breast_cancer_preprocessing],
-                "Student Placement": [df_student_placement, "Placement_Status", Student_placement_preprocessing],
-                "Personality": [df_personality, "Personality", Personality_type_preprocessing]}
+                "Student Placement": [df_student_placement, "Placement_Status", Student_placement_preprocessing]}#,
+                #"Personality": [df_personality, "Personality", Personality_type_preprocessing]}
 
     print("#" * 40)
     print("#" * 40)
