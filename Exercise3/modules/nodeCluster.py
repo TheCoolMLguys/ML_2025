@@ -124,10 +124,27 @@ class NodeCluster:
             max(current_range[1], val)
         )
 
-    # ------------------------------------------------------------------
-    # Generalization logic
-    # ------------------------------------------------------------------
 
+    def computeCost_per_instance(self, row_dict, alpha=1.0, beta=0.0):
+        """
+        Compute anonymization cost of an external (validation) row
+        WITHOUT modifying the cluster.
+        """
+
+        temp_node_id = "__temp_node__"
+
+        # Inject row temporarily
+        self._dataset[temp_node_id] = row_dict
+
+        try:
+            cost = self.computeNodeCost(temp_node_id, alpha, beta)
+        finally:
+            # Always clean up
+            del self._dataset[temp_node_id]
+
+        return cost
+
+        
     def computeNewGeneralization(self, col, node):
         """
         Returns [new_level, generalized_value] for categorical attributes
@@ -151,9 +168,6 @@ class NodeCluster:
 
         return [cluster_level, cluster_val]
 
-    # ------------------------------------------------------------------
-    # Output helpers
-    # ------------------------------------------------------------------
 
     def toString(self):
         """Return string representation of cluster"""

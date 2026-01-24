@@ -86,31 +86,74 @@ class SaNGreeATransformer(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None, k_graph=10):
 
    
-       if self.gen_hierarchies is None:
-          self.gen_hierarchies = self.prepareGenHierarchiesObject(X)
+      if self.gen_hierarchies is None:
+        self.gen_hierarchies = self.prepareGenHierarchiesObject(X)
 
-        # Build range hierarchies for numeric columns
-          self.range_bounds = {}
-          num_cols = X.select_dtypes(include="number").columns
+        # build numeric range hierarchies
+        self.range_bounds = {}
+        num_cols = X.select_dtypes(include="number").columns
 
-          for col in num_cols:
-             col_min = X[col].min()
-             col_max = X[col].max()
-             self.range_bounds[col] = (col_min, col_max)
-             self.gen_hierarchies["range"][col] = RGH.RangeGenHierarchy(
-                 col, col_min, col_max
-             )
+        for col in num_cols:
+            col_min = X[col].min()
+            col_max = X[col].max()
+            self.range_bounds[col] = (col_min, col_max)
 
-    # If adjacency list not provided → compute it
-       if self.adj_list is None:
-           self.adj_list = self._knn_adj_list(X, k=k_graph)
+            self.gen_hierarchies["range"][col] = RGH.RangeGenHierarchy(
+                col, col_min, col_max
+            )
 
-       return self
+    # build adjacency graph ONLY on training data
+      if self.adj_list is None:
+        self.adj_list = self._knn_adj_list(X, k=k_graph)
+
+    # build clusters only for training
+      self.clusters_ = self.build_clusters(X)
+
+      return self
 
     
+    def build_clusters(self, X):
+
+      adults = X.to_dict(orient="index")
+      clusters = []
+      added = {}
+
+      for node in adults:
+        if added.get(node, False):
+            continue
+
+        cluster = CL.NodeCluster(node, adults, self.adj_list, self.gen_hierarchies)
+
+        added[node] = True
+
+        while len(cluster.getNodes()) < self.k:
+
+            best_cost = 1e9 # very large number
+            best_candidate = None
+
+            for candidate in adults:
+                if added.get(candidate, False):
+                    continue
+
+                cost = cluster.computeNodeCost(candidate)
+                if cost < best_cost:
+                    best_cost = cost
+                    best_candidate = candidate
+
+            if best_candidate is None:
+                break
+
+            cluster.addNode(best_candidate)
+            added[best_candidate] = True
+
+        clusters.append(cluster)
+
+      return clusters
+
 
 
     def transform(self, X):
+
         """
         Based on logic of SaNGReea algorithm
         https://github.com/tanjascats/SaNGreeA-anonymisation/blob/master/src/SaNGreeA.py
@@ -119,50 +162,52 @@ class SaNGreeATransformer(BaseEstimator, TransformerMixin):
         returns: locally anonymized features
         """
 
-        X = X.copy()
         for col, (low, high) in self.range_bounds.items():
-              X[col] = X[col].clip(lower=low, upper=high)
+           X[col] = X[col].clip(lower=low, upper=high)
 
-        adults = X.to_dict(orient="index")
-        clusters = []
-        added = {}
+        # if fit() has been called, then just assign to existing clusters
+        if hasattr(self, "clusters_"):
+           return self.assign_to_clusters(X)
 
-        for node in adults:
-
-            if added.get(node, False):
-                continue
-
-            cluster = CL.NodeCluster(node, adults, self.adj_list, self.gen_hierarchies)
-
-            added[node] = True
-
-            while len(cluster.getNodes()) < self.k:
-               best_cost = 1e9
-               best_candidate = None
-
-               for candidate in adults:
-                 if added.get(candidate, False):
-                   continue
-
-               cost = cluster.computeNodeCost(candidate)
-               if cost < best_cost:
-                  best_cost = cost
-                  best_candidate = candidate
-
-               if best_candidate is None:
-                  # no more candidates to add, break the loop
-                  break
-
-               cluster.addNode(best_candidate)
-               added[best_candidate] = True
+        clusters = self.build_clusters(X)
+        return self.clusters_to_dataframe(clusters, X)
 
 
-            clusters.append(cluster)
+    def assign_to_clusters(self, X):
 
-        return self._clusters_to_dataframe(clusters, X)
+       rows = {}
+
+       for idx, row in X.iterrows():
+          row_dict = row.to_dict()
+    
+          best_cluster = None
+          best_cost = 1e9
+
+          for cluster in self.clusters_:
+            cost = cluster.computeCost_per_instance(row_dict)
+            if cost < best_cost:
+                best_cost = cost
+                best_cluster = cluster
+
+          out = {}
+
+        # numeric attributes → cluster ranges
+          for col, (low, high) in best_cluster._genRangeFeatures.items():
+            out[f"{col}_min"] = low
+            out[f"{col}_max"] = high
+
+        # categorical attributes → cluster generalized value
+          for col, val in best_cluster._genCatFeatures.items():
+            out[col] = val
+
+          rows[idx] = out
+
+       df = pd.DataFrame.from_dict(rows, orient="index")
+       df = df.loc[X.index]  # preserve order
+       return df
 
 
-    def _clusters_to_dataframe(self, clusters, X):
+    def clusters_to_dataframe(self, clusters, X):
         """
         Converts clusters to anonymized DataFrame.
         Ensures every original row is present.
