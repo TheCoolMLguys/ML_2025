@@ -276,6 +276,90 @@ def prepare_teen_phone_data(file_path='Exercise3/data/teen_phone_addiction_datas
     return data, intuitive_order, config
 
 
+def prepare_personality_data(file_path='Exercise3/data/personality_types_data_v2.csv'):
+
+    df = pd.read_csv(file_path)
+    print(f"Original shape: {df.shape}")
+
+    original_columns = list(df.columns)
+    qi_columns = [col for col in original_columns if col != 'Personality']
+    sa_column = 'Personality'
+
+    print(f"\nQI columns ({len(qi_columns)}): {qi_columns}")
+    print(f"SA column: {sa_column}")
+
+    is_categorical = []
+    for col in qi_columns:
+        if col in ['Gender', 'Interest']:
+            is_categorical.append(True)
+        elif col == 'Education':
+            is_categorical.append(True)
+        else:
+            is_categorical.append(False)
+
+    config = {
+        'name': 'personality',
+        'file_path': file_path,
+        'qi_columns': qi_columns,
+        'sa_column': sa_column,
+        'is_categorical': is_categorical,
+        'k': 5,
+        'strict': True,
+        'has_header': True,
+        'delimiter': ','
+    }
+
+    data = []
+    intuitive_dicts = []
+    intuitive_order = []
+    intuitive_numbers = []
+
+    for i in range(len(qi_columns)):
+        intuitive_dicts.append({})
+        intuitive_numbers.append(0)
+        intuitive_order.append([])
+
+    with open(file_path, 'r') as f:
+        reader = csv.reader(f, delimiter=',')
+        next(reader)
+
+        for row_num, row in enumerate(reader):
+            if not row or len(row) < 9:
+                continue
+
+            processed_row = []
+
+            for i, col_name in enumerate(qi_columns):
+                col_index = original_columns.index(col_name)
+                value = row[col_index].strip()
+
+                if config['is_categorical'][i]:
+                    if value in intuitive_dicts[i]:
+                        processed_row.append(intuitive_dicts[i][value])
+                    else:
+                        intuitive_dicts[i][value] = intuitive_numbers[i]
+                        processed_row.append(intuitive_numbers[i])
+                        intuitive_order[i].append(value)
+                        intuitive_numbers[i] += 1
+                else:
+                    try:
+                        processed_row.append(float(value))
+                    except ValueError:
+                        if value in intuitive_dicts[i]:
+                            processed_row.append(intuitive_dicts[i][value])
+                        else:
+                            intuitive_dicts[i][value] = intuitive_numbers[i]
+                            processed_row.append(intuitive_numbers[i])
+                            intuitive_order[i].append(value)
+                            intuitive_numbers[i] += 1
+
+            sa_index = original_columns.index(sa_column)
+            processed_row.append(row[sa_index].strip())
+            data.append(processed_row)
+
+    return data, intuitive_order, config
+
+
 def convert_back_to_original(anonymized_data, intuitive_order, delimiter='~'):
     converted_data = []
 
@@ -329,6 +413,8 @@ def run_anonymization_for_dataset(dataset_name, k=5, output_dir='Exercise3/anony
         data, intuitive_order, config = prepare_breast_cancer_data()
     elif dataset_name == 'teen_phone':
         data, intuitive_order, config = prepare_teen_phone_data()
+    elif dataset_name == 'personality':
+        data, intuitive_order, config = prepare_personality_data()
     else:
         raise ValueError(f"Unknown dataset: {dataset_name}")
 
@@ -375,7 +461,7 @@ def run_anonymization_for_dataset(dataset_name, k=5, output_dir='Exercise3/anony
 
 
 def main():
-    datasets = ['student_placement', 'breast_cancer', 'teen_phone']
+    datasets = ['student_placement', 'breast_cancer', 'teen_phone', 'personality']
 
     all_results = []
 
@@ -390,6 +476,8 @@ def main():
                 data_path = 'Exercise3/data/breast-cancer-diagnostic.shuf.lrn.csv'
             elif dataset == 'teen_phone':
                 data_path = 'Exercise3/data/teen_phone_addiction_dataset.csv'
+            elif dataset == 'personality':
+                data_path = 'Exercise3/data/personality_types_data_v2.csv'
 
             if not os.path.exists(data_path):
                 print(f"  Error: Data file not found at {data_path}")
