@@ -64,6 +64,8 @@ def run(datasets, state, anonymity=True):
             "KNN": KNeighborsClassifier()
         }
 
+        X_train, y_train, X_test, y_test = split_dataset(X, y, 0.2)
+
 
         for name, classifier in models.items():
 
@@ -80,8 +82,8 @@ def run(datasets, state, anonymity=True):
 
             results = cross_validate(
                 pipeline,
-                X,
-                y,
+                X_train,
+                y_train,
                 cv=cv,
                 scoring=scorers,
                 return_train_score=False,
@@ -113,7 +115,7 @@ if __name__ == "__main__":
     df_student_placement = pd.read_csv("Exercise3/data/student_placement.csv")
 
     datasets = {"Breast Cancer": [df_breast_cancer, "class", breast_cancer_preprocessing],
-                "Student Placement": [df_student_placement, "Placement_Status", Student_placement_preprocessing],
+                #"Student Placement": [df_student_placement, "Placement_Status", Student_placement_preprocessing],
                 "Personality": [df_personality, "Personality", Personality_type_preprocessing]}
 
     print("#" * 40)
