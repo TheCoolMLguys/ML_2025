@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from preprocessing_anonymise_prior import breast_cancer_preprocessing, Student_placement_preprocessing, Personality_type_preprocessing, SaNGreeATransformer, SaNGreeATransformer_microaggregation
 from sklearn.pipeline import Pipeline
-from sklearn.model_selection import cross_validate, KFold
+from sklearn.model_selection import cross_validate, KFold, train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, make_scorer
 
 from sklearn.ensemble import RandomForestClassifier
@@ -24,6 +24,19 @@ scorers = {
     "recall_weighted": make_scorer(recall_score, average="weighted", zero_division=1),
     "f1_weighted": make_scorer(f1_score, average="weighted"),
 }
+
+def split_dataset(df, target_column, test_set_size):
+
+    # Takes as input a dataframe, the target variable and the split size
+    # Returns the train and validation dataset 
+
+    #X = df.drop(columns=[target_column])
+    #y = df[target_column]
+
+    X_train, X_valid, y_train, y_valid = train_test_split(df, target_column, test_size=test_set_size, random_state=42, shuffle=True)
+
+    return X_train, y_train, X_valid, y_valid
+
 
 def run(datasets, state, anonymity=True):
 
@@ -47,14 +60,15 @@ def run(datasets, state, anonymity=True):
                 X = X.drop(columns = ["ID"])
                 X.columns = X.columns.str.strip()
                 X = X.drop(X.filter(regex = "perimeter|area", axis = 1).columns, axis = 1)
+                categorical_features = None
             if (keys == "Student Placement"):
                 X = X.drop(columns=["Student_ID"], errors="ignore")
                 categorical_features = ['Gender', 'Degree', 'Branch']
             if (keys == "Personality"):
                 categorical_features = ['Gender', 'Interest']
 
-            anonymizer_class=SaNGreeATransformer(k=5)
-            X = anonymizer_class.fit_transform(X)
+            anonymizer_class=SaNGreeATransformer_microaggregation(k=5)
+            X = anonymizer_class.fit_transform(X, categorical_features)
 
         preprocessing_class_instance = preprocessing_cls(anonymity=anonymity, k=5, anonymizer_class=None)
 
@@ -114,9 +128,9 @@ if __name__ == "__main__":
     df_personality = pd.read_csv("Exercise3/data/personality_types_data_v2.csv")
     df_student_placement = pd.read_csv("Exercise3/data/student_placement.csv")
 
-    datasets = {"Breast Cancer": [df_breast_cancer, "class", breast_cancer_preprocessing],
+    datasets = {"Breast Cancer": [df_breast_cancer, "class", breast_cancer_preprocessing]}#,
                 #"Student Placement": [df_student_placement, "Placement_Status", Student_placement_preprocessing],
-                "Personality": [df_personality, "Personality", Personality_type_preprocessing]}
+                #"Personality": [df_personality, "Personality", Personality_type_preprocessing]}
 
     print("#" * 40)
     print("#" * 40)
