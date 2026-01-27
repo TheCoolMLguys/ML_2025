@@ -195,9 +195,9 @@ def run_global_evaluation(datasets, n_splits=5, random_state=42):
         print(f"  Preprocessor info keys: {list(preprocessor_info.keys())}")
 
         models = {
-            "RandomForest": RandomForestClassifier(n_estimators=100, random_state=random_state),
-            "LogisticRegression": LogisticRegression(max_iter=1000, random_state=random_state),
-            "KNN": KNeighborsClassifier(n_neighbors=5)
+            "RandomForest": RandomForestClassifier(max_depth=5, random_state=random_state),
+            "LogisticRegression": LogisticRegression(random_state=random_state),
+            "KNN": KNeighborsClassifier()
         }
 
         for model_name, model in models.items():
@@ -247,9 +247,9 @@ def run_original_data_evaluation(datasets, n_splits=5, random_state=42):
         }
 
         models = {
-            "RandomForest": RandomForestClassifier(n_estimators=100, random_state=random_state),
-            "LogisticRegression": LogisticRegression(max_iter=1000, random_state=random_state),
-            "KNN": KNeighborsClassifier(n_neighbors=5)
+            "RandomForest": RandomForestClassifier(max_depth=5, random_state=random_state),
+            "LogisticRegression": LogisticRegression(random_state=random_state),
+            "KNN": KNeighborsClassifier()
         }
 
         for model_name, model in models.items():

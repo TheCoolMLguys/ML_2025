@@ -31,6 +31,7 @@ def prepare_student_placement_data(file_path='Exercise3/data/student_placement.c
 
 
     df = pd.read_csv(file_path)
+    df = df.sample(frac=0.2, random_state=42)
     print(f"Original shape: {df.shape}")
     print(f"Original columns: {list(df.columns)}")
 
@@ -77,22 +78,27 @@ def prepare_student_placement_data(file_path='Exercise3/data/student_placement.c
         intuitive_numbers.append(0)
         intuitive_order.append([])
 
-    with open(file_path, 'r') as f:
-        reader = csv.reader(f, delimiter=',')
+    for _, row in df.iterrows():
+        processed_row = []
 
-        next(reader)
+        for i, col_name in enumerate(qi_columns):
+            value = str(row[col_name]).strip()
 
-        for row_num, row in enumerate(reader):
-            if not row or len(row) < 15:
-                continue
-
-            processed_row = []
-
-            for i, col_name in enumerate(qi_columns):
-                col_index = original_columns.index(col_name)
-                value = row[col_index].strip()
-
-                if config['is_categorical'][i]:
+            if config['is_categorical'][i]:
+                if value in intuitive_dicts[i]:
+                    processed_row.append(intuitive_dicts[i][value])
+                else:
+                    intuitive_dicts[i][value] = intuitive_numbers[i]
+                    processed_row.append(intuitive_numbers[i])
+                    intuitive_order[i].append(value)
+                    intuitive_numbers[i] += 1
+            else:
+                try:
+                    if '.' in value:
+                        processed_row.append(float(value))
+                    else:
+                        processed_row.append(int(value))
+                except ValueError:
                     if value in intuitive_dicts[i]:
                         processed_row.append(intuitive_dicts[i][value])
                     else:
@@ -100,25 +106,9 @@ def prepare_student_placement_data(file_path='Exercise3/data/student_placement.c
                         processed_row.append(intuitive_numbers[i])
                         intuitive_order[i].append(value)
                         intuitive_numbers[i] += 1
-                else:
-                    try:
-                        if '.' in value:
-                            processed_row.append(float(value))
-                        else:
-                            processed_row.append(int(value))
-                    except ValueError:
-                        if value in intuitive_dicts[i]:
-                            processed_row.append(intuitive_dicts[i][value])
-                        else:
-                            intuitive_dicts[i][value] = intuitive_numbers[i]
-                            processed_row.append(intuitive_numbers[i])
-                            intuitive_order[i].append(value)
-                            intuitive_numbers[i] += 1
 
-            sa_index = original_columns.index(sa_column)
-            processed_row.append(row[sa_index].strip())
-
-            data.append(processed_row)
+        processed_row.append(str(row[sa_column]).strip())
+        data.append(processed_row)
 
     return data, intuitive_order, config
 
@@ -279,6 +269,7 @@ def prepare_teen_phone_data(file_path='Exercise3/data/teen_phone_addiction_datas
 def prepare_personality_data(file_path='Exercise3/data/personality_types_data_v2.csv'):
 
     df = pd.read_csv(file_path)
+    df = df.sample(frac=0.05, random_state=42)
     print(f"Original shape: {df.shape}")
 
     original_columns = list(df.columns)
@@ -319,21 +310,24 @@ def prepare_personality_data(file_path='Exercise3/data/personality_types_data_v2
         intuitive_numbers.append(0)
         intuitive_order.append([])
 
-    with open(file_path, 'r') as f:
-        reader = csv.reader(f, delimiter=',')
-        next(reader)
+    for _, row in df.iterrows():
+        processed_row = []
 
-        for row_num, row in enumerate(reader):
-            if not row or len(row) < 9:
-                continue
+        for i, col_name in enumerate(qi_columns):
+            value = str(row[col_name]).strip()
 
-            processed_row = []
-
-            for i, col_name in enumerate(qi_columns):
-                col_index = original_columns.index(col_name)
-                value = row[col_index].strip()
-
-                if config['is_categorical'][i]:
+            if config['is_categorical'][i]:
+                if value in intuitive_dicts[i]:
+                    processed_row.append(intuitive_dicts[i][value])
+                else:
+                    intuitive_dicts[i][value] = intuitive_numbers[i]
+                    processed_row.append(intuitive_numbers[i])
+                    intuitive_order[i].append(value)
+                    intuitive_numbers[i] += 1
+            else:
+                try:
+                    processed_row.append(float(value))
+                except ValueError:
                     if value in intuitive_dicts[i]:
                         processed_row.append(intuitive_dicts[i][value])
                     else:
@@ -341,21 +335,9 @@ def prepare_personality_data(file_path='Exercise3/data/personality_types_data_v2
                         processed_row.append(intuitive_numbers[i])
                         intuitive_order[i].append(value)
                         intuitive_numbers[i] += 1
-                else:
-                    try:
-                        processed_row.append(float(value))
-                    except ValueError:
-                        if value in intuitive_dicts[i]:
-                            processed_row.append(intuitive_dicts[i][value])
-                        else:
-                            intuitive_dicts[i][value] = intuitive_numbers[i]
-                            processed_row.append(intuitive_numbers[i])
-                            intuitive_order[i].append(value)
-                            intuitive_numbers[i] += 1
 
-            sa_index = original_columns.index(sa_column)
-            processed_row.append(row[sa_index].strip())
-            data.append(processed_row)
+        processed_row.append(str(row[sa_column]).strip())
+        data.append(processed_row)
 
     return data, intuitive_order, config
 
