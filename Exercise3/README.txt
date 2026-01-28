@@ -1,0 +1,5 @@
+python run_training.py
+python run_training_local_prior.py
+python run_training_microagg_cv_prior.py
+python run_training_microagg_cv.py
+python run_training_global.py
